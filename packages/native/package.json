@@ -1,0 +1,48 @@
+{
+  "name": "@skillhiive/native",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts,tsx",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@skillhiive/core": "workspace:*",
+    "@skillhiive/brand": "workspace:*",
+    "@skillhiive/contracts": "workspace:*",
+    "clsx": "^2.1.1",
+    "expo-image": "~55.0.11",
+    "expo-linear-gradient": "~55.0.14",
+    "expo-blur": "~55.0.14",
+    "expo-glass-effect": "~55.0.11",
+    "expo-haptics": "~55.0.14",
+    "react-native-reanimated": "4.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8",
+    "@vitejs/plugin-react": "^4.3.1",
+    "jsdom": "^25.0.0",
+    "@types/react": "^19.2.2",
+    "@types/react-native": "^0.73.0",
+    "react": "^19.2.0",
+    "react-native": "0.83.6"
+  },
+  "files": [
+    "dist"
+  ]
+}

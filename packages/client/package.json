@@ -1,0 +1,51 @@
+{
+  "name": "@skillhiive/client",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./supabase": {
+      "types": "./dist/supabase/index.d.ts",
+      "import": "./dist/supabase/index.js",
+      "default": "./dist/supabase/index.js"
+    },
+    "./livekit": {
+      "types": "./dist/livekit/index.d.ts",
+      "import": "./dist/livekit/index.js",
+      "default": "./dist/livekit/index.js"
+    },
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "livekit-client": "^2.19.1",
+    "livekit-server-sdk": "^2.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8",
+    "@types/node": "^24.12.4"
+  },
+  "files": [
+    "dist"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "skillhiive-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck --filter=@skillhiive/brand --filter=@skillhiive/client --filter=@skillhiive/contracts --filter=@skillhiive/i18n --filter=@skillhiive/mobile --filter=@skillhiive/native --filter=@skillhiive/ui --filter=@skillhiive/web --no-dependents",
+    "typecheck:all": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:contracts": "turbo run test:contracts",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yaml,yml}\"",
+    "generate-openapi": "bun run packages/contracts/src/generate-openapi.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.1"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

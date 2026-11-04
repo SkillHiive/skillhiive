@@ -1,0 +1,40 @@
+{
+  "name": "@skillhiive/core",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@skillhiive/contracts": "workspace:*",
+    "@skillhiive/brand": "workspace:*",
+    "react": "^19.2.0",
+    "expo-haptics": "~55.0.14",
+    "expo-camera": "~55.0.19",
+    "expo-device": "~55.0.16",
+    "expo-screen-orientation": "~55.0.18"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8",
+    "@types/react": "^19.2.2"
+  },
+  "files": [
+    "dist"
+  ]
+}

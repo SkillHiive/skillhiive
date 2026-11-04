@@ -1,0 +1,70 @@
+{
+  "name": "@skillhiive/contracts",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.js",
+      "default": "./dist/zod.js"
+    },
+    "./api/room": {
+      "types": "./dist/api/room.d.ts",
+      "import": "./dist/api/room.js",
+      "default": "./dist/api/room.js"
+    },
+    "./api/user": {
+      "types": "./dist/api/user.d.ts",
+      "import": "./dist/api/user.js",
+      "default": "./dist/api/user.js"
+    },
+    "./api/team": {
+      "types": "./dist/api/team.d.ts",
+      "import": "./dist/api/team.js",
+      "default": "./dist/api/team.js"
+    },
+    "./api/sync": {
+      "types": "./dist/api/sync.d.ts",
+      "import": "./dist/api/sync.js",
+      "default": "./dist/api/sync.js"
+    },
+    "./api/cue": {
+      "types": "./dist/api/cue.d.ts",
+      "import": "./dist/api/cue.js",
+      "default": "./dist/api/cue.js"
+    },
+    "./api/orchestration": {
+      "types": "./dist/api/orchestration.d.ts",
+      "import": "./dist/api/orchestration.js",
+      "default": "./dist/api/orchestration.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "test:contracts": "vitest run src/**/*.test.ts",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8",
+    "@types/node": "^24.12.4"
+  },
+  "files": [
+    "dist"
+  ]
+}

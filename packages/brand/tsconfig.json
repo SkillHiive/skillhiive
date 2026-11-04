@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "tsBuildInfoFile": "dist/tsbuildinfo",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["index.ts", "src/**/*", "web/**/*", "hooks/**/*", "tokens/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.native.ts", "**/native/**"]
+}
