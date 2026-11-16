@@ -37,17 +37,17 @@ export interface SyncResult {
 
 // ── Raw API shapes (both providers are Wakatime-compatible) ─────────────────
 
-interface WakaProject {
+export interface WakaProject {
   id: string | number;
   name: string;
 }
 
-interface WakaSummaryEntry {
+export interface WakaSummaryEntry {
   grand_total?: { total_seconds?: number };
   projects?: Array<{ name: string; total_seconds?: number }>;
   languages?: Array<{ name: string; total_seconds?: number }>;
 }
 
-interface WakaAllTime {
+export interface WakaAllTime {
   data?: { total_seconds?: number | string };
 }

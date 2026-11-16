@@ -4,4 +4,5 @@ export * from "./user";
 export * from "./team";
 export * from "./sync";
 export * from "./cue";
+export * from "./cueSync";
 export * from "./orchestration";

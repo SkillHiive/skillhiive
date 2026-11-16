@@ -1,0 +1,435 @@
+// Cue device sync — request handling with no platform imports, so the same
+// code runs in the edge runtime and under the test runner.
+//
+// Routes (all POST, JSON):
+//   /v1/link/start           unsigned  start linking a device, returns a code
+//   /v1/link/poll            signed    has the user approved the code yet?
+//   /v1/days                 signed    replace day rows for this device
+//   /v1/projects/unpublish   signed    drop one named project for this device
+//   /v1/device/revoke        signed    stop accepting this device
+//
+// Signed requests carry x-cue-device, x-cue-timestamp and x-cue-signature: an
+// Ed25519 signature over "<timestamp>.<sha256 hex of the raw body>".
+
+export const MAX_BODY_BYTES = 256 * 1024;
+export const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+export const LINK_TTL_SECONDS = 600;
+export const LINK_POLL_INTERVAL_SECONDS = 3;
+export const MAX_LINKS_PER_IP = 20;
+export const MAX_DAY_AGE_DAYS = 30;
+export const MAX_DEVICE_REQUESTS = 60;
+export const DEVICE_WINDOW_SECONDS = 600;
+const DAY_MS = 86_400_000;
+const PROJECT_KEY = /^p_[0-9a-f]{16}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const REMOTE = /^[a-z0-9.-]+\.[a-z]{2,}(\/[\w.~-]+)+$/i;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const SOURCES = ["shell", "fs", "agent", "git"] as const;
+
+export type ErrorCode =
+  | "unknown_device"
+  | "revoked_device"
+  | "bad_signature"
+  | "clock_skew"
+  | "link_expired"
+  | "too_large"
+  | "invalid"
+  | "rate_limited"
+  | "not_found";
+
+export interface LinkRow {
+  id: string;
+  publicKey: string;
+  expiresAt: string;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  deviceId: string | null;
+}
+
+export interface DeviceRow {
+  id: string;
+  userId: string;
+  publicKey: string;
+  revokedAt: string | null;
+}
+
+export interface SyncProject {
+  key: string;
+  name: string;
+  remote: string | null;
+}
+
+export interface SyncDay {
+  date: string;
+  projectKey: string;
+  seconds: number;
+  agentSeconds: number;
+  sources: Record<(typeof SOURCES)[number], number>;
+  languages: { name: string; seconds: number }[];
+  commits: number;
+}
+
+export interface DaysBody {
+  schema: 1;
+  cueVersion: string;
+  timezone: string;
+  projects: SyncProject[];
+  days: SyncDay[];
+}
+
+/** Everything the handler needs from storage. The edge function backs it with Supabase. */
+export interface CueSyncStore {
+  countRecentLinks(ipHash: string, sinceIso: string): Promise<number>;
+  createLink(link: {
+    userCodeHash: string;
+    publicKey: string;
+    deviceName: string;
+    platform: string;
+    ipHash: string;
+    expiresAt: string;
+  }): Promise<string>;
+  getLink(id: string): Promise<LinkRow | null>;
+  getDevice(id: string): Promise<DeviceRow | null>;
+  usernameOf(userId: string): Promise<string | null>;
+  writeDays(device: DeviceRow, projects: SyncProject[], days: SyncDay[]): Promise<void>;
+  unpublish(device: DeviceRow, projectKey: string): Promise<void>;
+  revokeDevice(device: DeviceRow): Promise<void>;
+  afterSync(device: DeviceRow): Promise<void>;
+  /** Count one signed request against the device's window; false once it is over the limit. */
+  allowRequest(device: DeviceRow): Promise<boolean>;
+}
+
+export interface CueSyncConfig {
+  /** Where the approval page lives, e.g. https://skillhiive.com */
+  webOrigin: string;
+  now: () => number;
+  /** Test seam; defaults to a random code. */
+  newCode?: () => string;
+}
+
+type Valid<T> = { ok: true; value: T } | { ok: false; field: string; message: string };
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
+}
+
+function fail(status: number, code: ErrorCode, message: string, field: string | null = null): Response {
+  return json(status, { error: { code, message, field } });
+}
+
+function bad(field: string, message: string): { ok: false; field: string; message: string } {
+  return { ok: false, field, message };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCount(value: unknown, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= max;
+}
+
+function isText(value: unknown, max: number): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= max;
+}
+
+function hex(bytes: ArrayBuffer): string {
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+}
+
+function fromBase64(text: string): Uint8Array | null {
+  try {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+/** True when `signature` is the device's Ed25519 signature over "<timestamp>.<sha256(body)>". */
+export async function verifyCueSignature(
+  publicKey: string,
+  timestamp: string,
+  body: string,
+  signature: string,
+): Promise<boolean> {
+  const keyBytes = fromBase64(publicKey);
+  const signatureBytes = fromBase64(signature);
+  if (keyBytes === null || keyBytes.length !== 32 || signatureBytes === null || signatureBytes.length !== 64) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", keyBytes, { name: "Ed25519" }, false, ["verify"]);
+    const message = new TextEncoder().encode(timestamp + "." + (await sha256Hex(body)));
+    return await crypto.subtle.verify({ name: "Ed25519" }, key, signatureBytes, message);
+  } catch {
+    return false;
+  }
+}
+
+/** The stored form of a link code. Must agree with public.cue_code_hash in the migration. */
+export function codeHash(code: string): Promise<string> {
+  return sha256Hex(code.trim().toUpperCase());
+}
+
+export function randomCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const chars = [...bytes].map((byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]);
+  return chars.slice(0, 4).join("") + "-" + chars.slice(4).join("");
+}
+
+function utcDate(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function validateLinkStart(
+  input: unknown,
+): Valid<{ publicKey: string; deviceName: string; platform: string; cueVersion: string }> {
+  if (!isRecord(input)) return bad("", "The body must be a JSON object.");
+  const keyBytes = typeof input["publicKey"] === "string" ? fromBase64(input["publicKey"]) : null;
+  if (keyBytes === null || keyBytes.length !== 32) return bad("publicKey", "publicKey must be a base64 Ed25519 public key.");
+  if (!isText(input["deviceName"], 80)) return bad("deviceName", "deviceName must be 1 to 80 characters.");
+  if (!isText(input["platform"], 40)) return bad("platform", "platform must be 1 to 40 characters.");
+  if (!isText(input["cueVersion"], 20)) return bad("cueVersion", "cueVersion must be 1 to 20 characters.");
+  return {
+    ok: true,
+    value: {
+      publicKey: input["publicKey"] as string,
+      deviceName: (input["deviceName"] as string).trim(),
+      platform: (input["platform"] as string).trim(),
+      cueVersion: input["cueVersion"] as string,
+    },
+  };
+}
+
+export function validateDays(input: unknown, nowMs: number): Valid<DaysBody> {
+  if (!isRecord(input)) return bad("", "The body must be a JSON object.");
+  if (input["schema"] !== 1) return bad("schema", "This server accepts schema 1.");
+  if (!isText(input["cueVersion"], 20)) return bad("cueVersion", "cueVersion must be 1 to 20 characters.");
+  if (!isText(input["timezone"], 64)) return bad("timezone", "timezone must be 1 to 64 characters.");
+  if (!Array.isArray(input["projects"]) || input["projects"].length > 200) return bad("projects", "projects must be a list of at most 200.");
+  if (!Array.isArray(input["days"]) || input["days"].length > 2000) return bad("days", "days must be a list of at most 2000.");
+
+  const projects: SyncProject[] = [];
+  const projectKeys = new Set<string>();
+  for (const [index, raw] of input["projects"].entries()) {
+    const at = `projects[${index}]`;
+    if (!isRecord(raw)) return bad(at, "Each project must be an object.");
+    if (typeof raw["key"] !== "string" || !PROJECT_KEY.test(raw["key"])) return bad(at + ".key", "key must look like p_ followed by 16 hex characters.");
+    if (projectKeys.has(raw["key"])) return bad(at + ".key", "Each project key may appear once.");
+    if (!isText(raw["name"], 80)) return bad(at + ".name", "name must be 1 to 80 characters.");
+    const remote = raw["remote"] ?? null;
+    if (remote !== null && (typeof remote !== "string" || remote.length > 200 || !REMOTE.test(remote))) {
+      return bad(at + ".remote", "remote must be a host and path with no scheme or credentials.");
+    }
+    projectKeys.add(raw["key"]);
+    projects.push({ key: raw["key"], name: (raw["name"] as string).trim(), remote });
+  }
+
+  const oldest = utcDate(nowMs - (MAX_DAY_AGE_DAYS + 1) * DAY_MS);
+  const newest = utcDate(nowMs + DAY_MS);
+  const days: SyncDay[] = [];
+  const seen = new Set<string>();
+  const perDate = new Map<string, number>();
+  for (const [index, raw] of input["days"].entries()) {
+    const at = `days[${index}]`;
+    if (!isRecord(raw)) return bad(at, "Each day must be an object.");
+    const date = raw["date"];
+    if (typeof date !== "string" || !DATE.test(date) || Number.isNaN(Date.parse(date + "T00:00:00Z"))) {
+      return bad(at + ".date", "date must be YYYY-MM-DD.");
+    }
+    if (date < oldest || date > newest) return bad(at + ".date", `date must be within the last ${MAX_DAY_AGE_DAYS} days.`);
+    const key = raw["projectKey"];
+    if (typeof key !== "string" || (key !== "private" && !projectKeys.has(key))) {
+      return bad(at + ".projectKey", "projectKey must be private or a key listed in projects.");
+    }
+    if (seen.has(date + "|" + key)) return bad(at, "Each date and projectKey pair may appear once.");
+    seen.add(date + "|" + key);
+    if (!isCount(raw["seconds"], 86_400)) return bad(at + ".seconds", "seconds must be a whole number from 0 to 86400.");
+    if (!isCount(raw["agentSeconds"], raw["seconds"])) return bad(at + ".agentSeconds", "agentSeconds must be a whole number no larger than seconds.");
+    if (!isRecord(raw["sources"])) return bad(at + ".sources", "sources must be an object.");
+    const sources = { shell: 0, fs: 0, agent: 0, git: 0 };
+    for (const source of SOURCES) {
+      const value = raw["sources"][source] ?? 0;
+      if (!isCount(value, 86_400)) return bad(`${at}.sources.${source}`, "Each source must be a whole number from 0 to 86400.");
+      sources[source] = value;
+    }
+    if (!Array.isArray(raw["languages"]) || raw["languages"].length > 50) return bad(at + ".languages", "languages must be a list of at most 50.");
+    const languages: { name: string; seconds: number }[] = [];
+    for (const [languageIndex, language] of raw["languages"].entries()) {
+      if (!isRecord(language) || !isText(language["name"], 40) || !isCount(language["seconds"], 86_400)) {
+        return bad(`${at}.languages[${languageIndex}]`, "Each language needs a name of up to 40 characters and whole seconds.");
+      }
+      languages.push({ name: language["name"], seconds: language["seconds"] });
+    }
+    if (!isCount(raw["commits"], 10_000)) return bad(at + ".commits", "commits must be a whole number from 0 to 10000.");
+    if (key === "private" && (languages.length > 0 || raw["commits"] !== 0)) {
+      return bad(at, "The private row carries no languages and no commit count.");
+    }
+    const total = (perDate.get(date) ?? 0) + raw["seconds"];
+    if (total > 86_400) return bad(at + ".seconds", "The rows for one date add up to more than a day.");
+    perDate.set(date, total);
+    days.push({ date, projectKey: key, seconds: raw["seconds"], agentSeconds: raw["agentSeconds"], sources, languages, commits: raw["commits"] });
+  }
+
+  return { ok: true, value: { schema: 1, cueVersion: input["cueVersion"], timezone: input["timezone"], projects, days } };
+}
+
+type Signed = { ok: true; body: string; id: string } | { ok: false; response: Response };
+
+async function readBody(request: Request): Promise<{ ok: true; text: string } | { ok: false; response: Response }> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > MAX_BODY_BYTES) return { ok: false, response: fail(413, "too_large", "The request body is larger than 256 KB.") };
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
+    return { ok: false, response: fail(413, "too_large", "The request body is larger than 256 KB.") };
+  }
+  return { ok: true, text };
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return text.length === 0 ? {} : JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+async function checkSignature(request: Request, body: string, publicKey: string, nowMs: number): Promise<Response | null> {
+  const timestamp = request.headers.get("x-cue-timestamp") ?? "";
+  const signature = request.headers.get("x-cue-signature") ?? "";
+  if (!/^\d{10,16}$/.test(timestamp) || signature.length === 0) {
+    return fail(401, "bad_signature", "The request is not signed.");
+  }
+  if (Math.abs(nowMs - Number(timestamp)) > MAX_CLOCK_SKEW_MS) {
+    return fail(409, "clock_skew", "This computer's clock is more than five minutes off.");
+  }
+  if (!(await verifyCueSignature(publicKey, timestamp, body, signature))) {
+    return fail(401, "bad_signature", "The request signature did not match.");
+  }
+  return null;
+}
+
+async function signedByDevice(request: Request, store: CueSyncStore, nowMs: number): Promise<Signed & { device?: DeviceRow }> {
+  const read = await readBody(request);
+  if (!read.ok) return read;
+  const id = request.headers.get("x-cue-device") ?? "";
+  const device = id.length === 0 ? null : await store.getDevice(id);
+  if (device === null) return { ok: false, response: fail(401, "unknown_device", "This device is not linked to an account.") };
+  const refusal = await checkSignature(request, read.text, device.publicKey, nowMs);
+  if (refusal !== null) return { ok: false, response: refusal };
+  if (device.revokedAt !== null) return { ok: false, response: fail(401, "revoked_device", "This device was removed from the account.") };
+  // Only a request that proved it holds the device key is counted.
+  if (!(await store.allowRequest(device))) {
+    return { ok: false, response: fail(429, "rate_limited", "Too many requests from this device. Cue will retry.") };
+  }
+  return { ok: true, body: read.text, id, device };
+}
+
+async function linkStart(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const read = await readBody(request);
+  if (!read.ok) return read.response;
+  const parsed = validateLinkStart(parseJson(read.text));
+  if (!parsed.ok) return fail(422, "invalid", parsed.message, parsed.field);
+  const now = config.now();
+  const forwarded = (request.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() ?? "";
+  const ipHash = await sha256Hex("cue-link:" + forwarded);
+  const recent = await store.countRecentLinks(ipHash, new Date(now - LINK_TTL_SECONDS * 1000).toISOString());
+  if (recent >= MAX_LINKS_PER_IP) return fail(429, "rate_limited", "Too many link attempts. Try again in a few minutes.");
+
+  const userCode = (config.newCode ?? randomCode)();
+  const linkId = await store.createLink({
+    userCodeHash: await codeHash(userCode),
+    publicKey: parsed.value.publicKey,
+    deviceName: parsed.value.deviceName,
+    platform: parsed.value.platform,
+    ipHash,
+    expiresAt: new Date(now + LINK_TTL_SECONDS * 1000).toISOString(),
+  });
+  return json(200, {
+    linkId,
+    userCode,
+    verifyUrl: config.webOrigin.replace(/\/+$/, "") + "/link?code=" + encodeURIComponent(userCode),
+    expiresIn: LINK_TTL_SECONDS,
+    interval: LINK_POLL_INTERVAL_SECONDS,
+  });
+}
+
+async function linkPoll(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const read = await readBody(request);
+  if (!read.ok) return read.response;
+  const body = parseJson(read.text);
+  const linkId = isRecord(body) && typeof body["linkId"] === "string" ? body["linkId"] : "";
+  if (linkId.length === 0 || linkId !== (request.headers.get("x-cue-device") ?? "")) {
+    return fail(422, "invalid", "linkId must match the x-cue-device header.", "linkId");
+  }
+  const link = await store.getLink(linkId);
+  if (link === null) return fail(410, "link_expired", "This link code is no longer valid.");
+  const now = config.now();
+  const refusal = await checkSignature(request, read.text, link.publicKey, now);
+  if (refusal !== null) return refusal;
+  if (link.approvedAt !== null && link.deviceId !== null && link.approvedBy !== null) {
+    return json(200, { status: "approved", deviceId: link.deviceId, username: (await store.usernameOf(link.approvedBy)) ?? "" });
+  }
+  if (Date.parse(link.expiresAt) <= now) return json(200, { status: "expired" });
+  return json(200, { status: "pending" });
+}
+
+async function pushDays(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const signed = await signedByDevice(request, store, config.now());
+  if (!signed.ok) return signed.response;
+  const device = signed.device!;
+  const parsed = validateDays(parseJson(signed.body), config.now());
+  if (!parsed.ok) return fail(422, "invalid", parsed.message, parsed.field);
+  await store.writeDays(device, parsed.value.projects, parsed.value.days);
+  await store.afterSync(device);
+  return json(200, { ok: true, accepted: parsed.value.days.length, serverTime: config.now() });
+}
+
+async function unpublish(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const signed = await signedByDevice(request, store, config.now());
+  if (!signed.ok) return signed.response;
+  const body = parseJson(signed.body);
+  const key = isRecord(body) && typeof body["key"] === "string" ? body["key"] : "";
+  if (!PROJECT_KEY.test(key)) return fail(422, "invalid", "key must look like p_ followed by 16 hex characters.", "key");
+  await store.unpublish(signed.device!, key);
+  await store.afterSync(signed.device!);
+  return json(200, { ok: true });
+}
+
+async function revoke(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const signed = await signedByDevice(request, store, config.now());
+  if (!signed.ok) return signed.response;
+  await store.revokeDevice(signed.device!);
+  return json(200, { ok: true });
+}
+
+const ROUTES: Record<string, (request: Request, store: CueSyncStore, config: CueSyncConfig) => Promise<Response>> = {
+  "/v1/link/start": linkStart,
+  "/v1/link/poll": linkPoll,
+  "/v1/days": pushDays,
+  "/v1/projects/unpublish": unpublish,
+  "/v1/device/revoke": revoke,
+};
+
+/** Route one request. The path may carry any prefix (the function name) before /v1. */
+export async function handleCueSync(request: Request, store: CueSyncStore, config: CueSyncConfig): Promise<Response> {
+  const path = new URL(request.url).pathname;
+  // The platform prefix (/functions/v1/<name>) also contains /v1/, so take the last one.
+  const start = path.lastIndexOf("/v1/");
+  const route = start === -1 ? undefined : ROUTES[path.slice(start).replace(/\/+$/, "")];
+  if (route === undefined) return fail(404, "not_found", "No such route.");
+  if (request.method !== "POST") return fail(405, "invalid", "Use POST.");
+  try {
+    return await route(request, store, config);
+  } catch {
+    return json(500, { error: { code: "server_error", message: "SkillHiive could not save that. Try again.", field: null } });
+  }
+}
