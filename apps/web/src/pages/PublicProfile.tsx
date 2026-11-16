@@ -5,7 +5,7 @@ import SwipeLayout from "@/components/SwipeLayout";
 import { Text } from "@skillhiive/ui";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
 import { CodingTimeProfileCard } from "@/components/CodingTime";
 
@@ -139,7 +139,7 @@ export default function PublicProfile() {
     if (!error && data) {
       setPosts(data);
       setHasMore(data.length === PAGE_SIZE);
-      setCursor(data.length > 0 ? data[data.length - 1].created_at : null);
+      setCursor(data.at(-1)?.created_at ?? null);
     }
     setLoadingPosts(false);
   }, [id]);
@@ -158,7 +158,7 @@ export default function PublicProfile() {
     if (data) {
       setPosts((prev) => [...prev, ...data]);
       setHasMore(data.length === PAGE_SIZE);
-      setCursor(data.length > 0 ? data[data.length - 1].created_at : cursor);
+      setCursor(data.at(-1)?.created_at ?? cursor);
     }
     isFetchingMore.current = false;
   }, [id, cursor, hasMore]);

@@ -110,7 +110,7 @@ function AvatarStack({ names, ringBorder }: { names: string[]; ringBorder: strin
     <div style={{ display: "flex", alignItems: "center" }}>
       {visible.map((name, i) => {
         const initials = name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase();
-        const [bg, color] = AVATAR_COLORS[i % AVATAR_COLORS.length];
+        const [bg, color] = AVATAR_COLORS[i % AVATAR_COLORS.length] ?? ["transparent", "inherit"];
         return (
           <div key={`${name}-${i}`} style={{ width: 28, height: 28, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: bg, border: `2px solid ${ringBorder}`, marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i, position: "relative" }}>
             <span style={{ fontSize: 9, fontWeight: 800, color }}>{initials}</span>

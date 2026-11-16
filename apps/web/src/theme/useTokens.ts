@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useTheme } from "@/components/theme-provider";
+import { useTheme } from "@/components/themeContext";
 import {
   darkPalette,
   lightPalette,

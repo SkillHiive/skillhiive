@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import SwipeLayout from "@/components/SwipeLayout";
 import { IconButton, Text } from "@skillhiive/ui";
-import { useProfile, type Profile } from "@/hooks/profileContext";
+import { useProfile, type Profile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
 
 const FONT =

@@ -179,7 +179,7 @@ function useOrgRepos(fallback: RepoCardData[]) {
         if (!Array.isArray(data)) throw new Error("unexpected response");
 
         const live: RepoCardData[] = data.filter(
-          (r: any) => r.name !== ".github",
+          (r: RepoCardData) => r.name !== ".github",
         );
 
         if (!cancelled && data.length > 0) {

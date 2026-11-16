@@ -1,35 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-
-export type Profile = {
-  id: string;
-  username: string | null;
-  avatar: string | null;
-  banner: string | null;
-  bio: string | null;
-  displayname: string;
-  created_at: string;
-  email: string;
-};
-type ProfileContextValue = {
-  profile: Profile | null;
-  loading: boolean;
-  error: string | null;
-  updateField: (
-    key: keyof Omit<Profile, "id" | "created_at" | "email">,
-    value: string,
-  ) => Promise<boolean>;
-  reload: () => Promise<void>;
-};
-
-const ProfileContext = createContext<ProfileContextValue | null>(null);
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ProfileContext, type Profile } from "./useProfile";
 
 export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -37,25 +8,26 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
 
-  useEffect(() => {
-    isMounted.current = true;
-    load();
+  const create = useCallback(async (id: string, email: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({ id, displayname: email.split("@")[0] })
+      .select(
+        "id, username, avatar, banner, bio, displayname, created_at, followers, following",
+      )
+      .single();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") load();
-      if (event === "SIGNED_OUT") {
-        setProfile(null);
-        setError(null);
-      }
-    });
+    if (!isMounted.current) return;
 
-    return () => {
-      isMounted.current = false;
-      listener.subscription.unsubscribe();
-    };
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setProfile({ ...data, email });
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!isMounted.current) return;
     setLoading(true);
     setError(null);
@@ -103,26 +75,25 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setLoading(false);
-  };
+  }, [create]);
 
-  const create = async (id: string, email: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert({ id, displayname: email.split("@")[0] })
-      .select(
-        "id, username, avatar, banner, bio, displayname, created_at, followers, following",
-      )
-      .single();
+  useEffect(() => {
+    isMounted.current = true;
+    load();
 
-    if (!isMounted.current) return;
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") load();
+      if (event === "SIGNED_OUT") {
+        setProfile(null);
+        setError(null);
+      }
+    });
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    setProfile({ ...data, email });
-  };
+    return () => {
+      isMounted.current = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [load]);
 
   const updateField = async (
     key: keyof Omit<Profile, "id" | "created_at" | "email">,
@@ -155,10 +126,4 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </ProfileContext.Provider>
   );
-};
-
-export const useProfile = (): ProfileContextValue => {
-  const ctx = useContext(ProfileContext);
-  if (!ctx) throw new Error("useProfile must be used inside ProfileProvider");
-  return ctx;
 };

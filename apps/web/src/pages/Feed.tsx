@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import {
   Briefcase,
   FileText,
@@ -13,6 +13,7 @@ import SwipeLayout from "@/components/SwipeLayout";
 import { Avatar, Text } from "@skillhiive/ui";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
 import { useTokens } from "@/theme";
+import { errorMessage } from "@/lib/errors";
 
 
 type PostType = "project" | "offer" | "media";
@@ -144,7 +145,7 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
   const [description, setDescription] = useState("");
   const [currentlyWorking, setCurrentlyWorking] = useState(true);
   const [startedAt, setStartedAt] = useState<string>(
-    new Date().toISOString().split("T")[0],
+    new Date().toISOString().slice(0, 10),
   );
   const [endedAt, setEndedAt] = useState<string>("");
 
@@ -167,7 +168,7 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
     setTitle("");
     setDescription("");
     setCurrentlyWorking(true);
-    setStartedAt(new Date().toISOString().split("T")[0]);
+    setStartedAt(new Date().toISOString().slice(0, 10));
     setEndedAt("");
     setCompany("");
     setRole("");
@@ -244,8 +245,8 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
 
       reset();
       onPosted();
-    } catch (e: any) {
-      setError(e?.message ?? "Something went wrong.");
+    } catch (e) {
+      setError(errorMessage(e) ?? "Something went wrong.");
     } finally {
       setPosting(false);
     }
@@ -713,7 +714,7 @@ export default function Feed() {
       lastFetchedRef.current = Date.now();
       setPosts(rows);
       setHasMore(rows.length === PAGE_SIZE);
-      setCursor(rows.length > 0 ? rows[rows.length - 1].created_at : null);
+      setCursor(rows.at(-1)?.created_at ?? null);
       setLoading(false);
     },
     [filter],
@@ -745,7 +746,7 @@ export default function Feed() {
       const rows = data ?? [];
       setPosts((prev) => [...prev, ...rows]);
       setHasMore(rows.length === PAGE_SIZE);
-      setCursor(rows.length > 0 ? rows[rows.length - 1].created_at : cursor);
+      setCursor(rows.at(-1)?.created_at ?? cursor);
     }
 
     setLoadingMore(false);

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
 import { Text, Avatar, IconButton } from "@skillhiive/ui";
 import ActionRow from "@/components/ActionRow";
@@ -260,16 +260,23 @@ export default function Post() {
     if (postRes.error) {
       setError("Couldn't load post.");
     } else {
-      const raw = postRes.data as any;
+      // PostgREST returns a to-one relation as an object or a one-item array depending on the query.
+      type OneOrMany<T> = T | T[];
+      const raw = postRes.data as unknown as Omit<PostDetail, "profiles" | "project_posts" | "offer_posts"> & {
+        profiles: OneOrMany<PostDetail["profiles"]>;
+        project_posts: OneOrMany<NonNullable<PostDetail["project_posts"]>> | null;
+        offer_posts: OneOrMany<NonNullable<PostDetail["offer_posts"]>> | null;
+      };
       const normalized: PostDetail = {
         ...raw,
-        profiles: Array.isArray(raw.profiles) ? raw.profiles[0] : raw.profiles,
-        project_posts: Array.isArray(raw.project_posts)
+        // An empty array (no related row) stays undefined, exactly as before the types were added.
+        profiles: (Array.isArray(raw.profiles) ? raw.profiles[0] : raw.profiles) as PostDetail["profiles"],
+        project_posts: (Array.isArray(raw.project_posts)
           ? raw.project_posts[0]
-          : raw.project_posts,
-        offer_posts: Array.isArray(raw.offer_posts)
+          : raw.project_posts) as PostDetail["project_posts"],
+        offer_posts: (Array.isArray(raw.offer_posts)
           ? raw.offer_posts[0]
-          : raw.offer_posts,
+          : raw.offer_posts) as PostDetail["offer_posts"],
       };
       setPost(normalized);
       setEditCaption(normalized.caption ?? "");
@@ -303,7 +310,7 @@ export default function Post() {
 
   useEffect(() => {
     if (loading) return;
-    if ((location.state as any)?.focusComment) {
+    if ((location.state as { focusComment?: boolean } | null)?.focusComment) {
       const t = setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.scrollIntoView({

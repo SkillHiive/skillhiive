@@ -22,7 +22,7 @@ export default function Hero() {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const el = entry.target as HTMLElement;
-            const delay = el.dataset.delay ? parseInt(el.dataset.delay) : 0;
+            const delay = el.dataset['delay'] ? parseInt(el.dataset['delay']) : 0;
 
             setTimeout(() => {
               el.classList.add("in-view");

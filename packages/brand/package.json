@@ -12,9 +12,8 @@
       "default": "./dist/index.js"
     },
     "./web": {
-      "types": "./dist/web/index.d.ts",
-      "import": "./dist/web/index.js",
-      "default": "./dist/web/index.js"
+      "style": "./src/web/tokens.css",
+      "default": "./src/web/tokens.css"
     },
     "./hooks/useTokens": {
       "types": "./dist/hooks/useTokens.d.ts",
@@ -40,6 +39,7 @@
     "tailwindcss": "^4.1.17"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/web/tokens.css"
   ]
 }

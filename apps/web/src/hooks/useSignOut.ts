@@ -25,7 +25,7 @@ export const useSignOut = () => {
     } finally {
       setIsSigningOut(false);
     }
-  }, [supabase.auth, showError]);
+  }, [showError]);
 
   const handleSignOut = useCallback(() => {
     if (isSigningOut) return;

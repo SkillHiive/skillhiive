@@ -26,6 +26,7 @@ import {
 } from "@/lib/timeTracker";
 import { fetchMyProjects } from "@/lib/todayData";
 import { supabase } from "@/lib/supabase";
+import { CueCard } from "@/components/CodingTime/CueCard";
 
 const FONT =
   '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -199,10 +200,12 @@ export default function SettingsTrackers() {
               Time tracker
             </Text>
             <Text variant="bodySm" tone="secondary">
-              Connect Wakatime or Hackatime and link projects to show verified
-              coding time on SkillHive.
+              Link Cue, or connect Wakatime or Hackatime, to show your coding
+              time on SkillHive.
             </Text>
           </div>
+
+          <CueCard hasTracker={!!connection} onChanged={refresh} />
 
           {loading ? (
             <Text variant="bodySm" tone="tertiary">

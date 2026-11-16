@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Text, Button } from "@skillhiive/ui";
 import { Heatmap } from "@/components/ui/Heatmap";
 import { useTokens } from "@/theme";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import {
   useToday,
   type TodayTask,
@@ -552,7 +552,7 @@ function IntentView({
     for (const row of rows) {
       const r = row.getBoundingClientRect();
       if (e.clientY >= r.top && e.clientY <= r.bottom) {
-        targetIndex = Number(row.dataset.index);
+        targetIndex = Number(row.dataset['index']);
         break;
       }
     }

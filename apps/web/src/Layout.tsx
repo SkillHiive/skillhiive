@@ -6,7 +6,8 @@ import * as Page from "./pages";
 import * as Comp from "./components";
 import Cursor from "./components/Cursor";
 import { AuthGate } from "./components/AuthGate";
-import { ProfileProvider, useProfile } from "./hooks/profileContext";
+import { ProfileProvider } from "./hooks/profileContext";
+import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
 import Lenis from 'lenis'
 import SEO from "./components/SEO";
@@ -27,13 +28,11 @@ function AnimatedRoutes() {
     }
   }, [location.pathname, prevIndex]);
 
-const lenis = new Lenis({
-  autoRaf: true,
-});
-
-lenis.on('scroll', (e) => {
-  console.log(e);
-});
+  // One smooth-scroll instance for the life of the app, torn down on unmount.
+  useEffect(() => {
+    const lenis = new Lenis({ autoRaf: true });
+    return () => lenis.destroy();
+  }, []);
 
   return (
     <ProfileProvider>
@@ -155,6 +154,9 @@ lenis.on('scroll', (e) => {
               </AuthGate>
             }
           />
+          <Route path="/link" element={<><SEO /><Page.CueLink /></>} />
+          <Route path="/terms" element={<><SEO /><Page.Terms /></>} />
+          <Route path="/privacy" element={<><SEO /><Page.Privacy /></>} />
           <Route path="*" element={<Page.NotFound />} />
         </Routes>
       </AnimatePresence>

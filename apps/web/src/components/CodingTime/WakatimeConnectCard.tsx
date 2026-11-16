@@ -3,7 +3,7 @@ import { Link2, Lock, Unlock } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import {
   useProjectCodingTime,
   useTrackerConnection,

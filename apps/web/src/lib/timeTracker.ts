@@ -70,11 +70,11 @@ export async function fetchMyConnection(): Promise<TrackerConnectionInfo | null>
     if (error || !data || !Array.isArray(data) || data.length === 0) return null;
     const r = data[0] as Record<string, unknown>;
     return {
-      provider: (r.provider as TrackerProvider) ?? "wakatime",
-      status: (r.status as TrackerConnectionInfo["status"]) ?? "active",
-      last_sync_at: (r.last_sync_at as string) ?? null,
-      last_error: (r.last_error as string) ?? null,
-      created_at: String(r.created_at ?? ""),
+      provider: (r['provider'] as TrackerProvider) ?? "wakatime",
+      status: (r['status'] as TrackerConnectionInfo["status"]) ?? "active",
+      last_sync_at: (r['last_sync_at'] as string) ?? null,
+      last_error: (r['last_error'] as string) ?? null,
+      created_at: String(r['created_at'] ?? ""),
     };
   } catch {
     return null;
@@ -143,7 +143,7 @@ export async function triggerSync(
     if (!session?.access_token) return { ok: false, error: "Session expired" };
 
     const base =
-      (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
+      (import.meta.env['VITE_BACKEND_URL'] as string | undefined) ??
       "https://api.skillhivelabs.com";
 
     console.log("[triggerSync] Calling:", `${base}/sync-time-trackers${force ? "?force=1" : ""}`);
@@ -280,12 +280,12 @@ export async function fetchProjectCodingTime(
     if (error || !data || !Array.isArray(data) || data.length === 0) return null;
     const r = data[0] as Record<string, unknown>;
     return {
-      total_seconds: Number(r.total_seconds ?? 0),
+      total_seconds: Number(r['total_seconds'] ?? 0),
       language_breakdown: parseJsonArray<TrackerLanguageStat>(
-        r.language_breakdown,
+        r['language_breakdown'],
       ),
-      last_coded_at: (r.last_coded_at as string) ?? null,
-      is_public: Boolean(r.is_public),
+      last_coded_at: (r['last_coded_at'] as string) ?? null,
+      is_public: Boolean(r['is_public']),
     };
   } catch {
     return null;
@@ -302,15 +302,15 @@ export async function fetchUserCodingTime(
     if (error || !data || !Array.isArray(data) || data.length === 0) return null;
     const r = data[0] as Record<string, unknown>;
     return {
-      total_seconds: Number(r.total_seconds ?? 0),
+      total_seconds: Number(r['total_seconds'] ?? 0),
       language_breakdown: parseJsonArray<TrackerLanguageStat>(
-        r.language_breakdown,
+        r['language_breakdown'],
       ),
-      daily_breakdown: parseJsonArray<TrackerDayStat>(r.daily_breakdown),
-      current_streak_days: Number(r.current_streak_days ?? 0),
-      longest_streak_days: Number(r.longest_streak_days ?? 0),
-      last_coded_at: (r.last_coded_at as string) ?? null,
-      is_public: Boolean(r.is_public),
+      daily_breakdown: parseJsonArray<TrackerDayStat>(r['daily_breakdown']),
+      current_streak_days: Number(r['current_streak_days'] ?? 0),
+      longest_streak_days: Number(r['longest_streak_days'] ?? 0),
+      last_coded_at: (r['last_coded_at'] as string) ?? null,
+      is_public: Boolean(r['is_public']),
     };
   } catch {
     return null;

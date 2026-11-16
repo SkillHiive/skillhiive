@@ -221,11 +221,11 @@ export function getPageMeta(pathname: string, dynamicParams?: Record<string, str
     if (match) {
       const meta = { ...route.meta };
       if (dynamicParams) {
-        if (meta.title.includes(":") && dynamicParams.id) {
-          meta.title = `${dynamicParams.id} — SkillHiive`;
+        if (meta.title.includes(":") && dynamicParams['id']) {
+          meta.title = `${dynamicParams['id']} — SkillHiive`;
         }
-        if (meta.description.includes(":") && dynamicParams.id) {
-          meta.description = `View ${dynamicParams.id}'s profile on SkillHiive.`;
+        if (meta.description.includes(":") && dynamicParams['id']) {
+          meta.description = `View ${dynamicParams['id']}'s profile on SkillHiive.`;
         }
       }
       return meta;

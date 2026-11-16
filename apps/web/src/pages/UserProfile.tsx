@@ -4,7 +4,7 @@ import { ArrowLeft, Clock, FolderGit2, Keyboard, Pencil } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { Heatmap } from "@/components/ui/Heatmap";
 import { useTokens } from "@/theme";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import { useUserCodingStats } from "@/hooks/useTimeTracker";
 import {
   LanguageBreakdown,
