@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, Flame, TrendingUp, RefreshCw, ExternalLink } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { useUserCodingStats } from "@/hooks/useTimeTracker";
 import { triggerSync, formatDuration, type UserCodingTime } from "@/lib/timeTracker";
 import { MiniHeatmap } from "./parts";
+import { agentSharePercent, earlierHistoryNote, fetchUserCodingExtras, type CodingExtras } from "@/lib/cue";
 
 interface Props {
   userId: string;
@@ -16,6 +17,17 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
   const { colors, spacing, radii } = useTokens();
   const { stats, loading, refresh } = useUserCodingStats(userId);
   const [syncing, setSyncing] = useState(false);
+  const [extras, setExtras] = useState<CodingExtras | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetchUserCodingExtras(userId).then((next) => {
+      if (active) setExtras(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId, stats?.total_seconds]);
 
   const handleSync = async () => {
     if (!isOwnProfile) return;
@@ -139,11 +151,11 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
                 border: `1px solid ${colors.tint.success}55`,
               }}
             >
-              VERIFIED
+              {extras?.source === "cue" ? "VIA CUE" : "VERIFIED"}
             </span>
           )}
         </div>
-        {isOwnProfile && (
+        {isOwnProfile && extras?.source !== "cue" && (
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -186,6 +198,18 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
           </button>
         )}
       </div>
+
+      {extras?.source === "cue" && (
+        <Text variant="caption" tone="tertiary">
+          {isOwnProfile ? "From your device via Cue" : "From their device via Cue"}
+          {agentSharePercent(stats.total_seconds, extras.agent_seconds) > 0
+            ? ` · ${agentSharePercent(stats.total_seconds, extras.agent_seconds)}% with a coding agent`
+            : ""}
+        </Text>
+      )}
+      {earlierHistoryNote(extras) && (
+        <Text variant="caption" tone="tertiary">{earlierHistoryNote(extras)}</Text>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: spacing.sm }}>
         <StatCard

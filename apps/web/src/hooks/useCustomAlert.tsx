@@ -28,8 +28,7 @@ export interface UseCustomAlertConfig {
   useNative?: boolean;
 }
 
-export const useCustomAlert = (config?: UseCustomAlertConfig) => {
-  const useNative = config?.useNative ?? false;
+export const useCustomAlert = () => {
 
   const [alertConfig, setAlertConfig] = useState<CustomAlertOptions | null>(
     null,
@@ -41,7 +40,7 @@ export const useCustomAlert = (config?: UseCustomAlertConfig) => {
       setAlertConfig(options);
       setIsVisible(true);
     },
-    [useNative],
+    [],
   );
 
   const hideAlert = useCallback(() => {

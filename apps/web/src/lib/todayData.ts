@@ -257,11 +257,11 @@ export async function fetchFocusStats(
     if (error || !data || !Array.isArray(data) || data.length === 0) return null;
     const r = data[0] as Record<string, number>;
     return {
-      total_minutes: Number(r.total_minutes ?? 0),
-      total_sessions: Number(r.total_sessions ?? 0),
-      days_active: Number(r.days_active ?? 0),
-      last_7d_minutes: Number(r.last_7d_minutes ?? 0),
-      current_streak: Number(r.current_streak ?? 0),
+      total_minutes: Number(r['total_minutes'] ?? 0),
+      total_sessions: Number(r['total_sessions'] ?? 0),
+      days_active: Number(r['days_active'] ?? 0),
+      last_7d_minutes: Number(r['last_7d_minutes'] ?? 0),
+      current_streak: Number(r['current_streak'] ?? 0),
     };
   } catch {
     return null;
@@ -308,14 +308,14 @@ export async function fetchProjectSummary(
     if (error || !data || !Array.isArray(data) || data.length === 0) return null;
     const r = data[0] as Record<string, unknown>;
     return {
-      name: String(r.name ?? "Untitled"),
-      description: (r.description as string) ?? null,
-      created_at: String(r.created_at ?? ""),
-      owner_username: (r.owner_username as string) ?? null,
-      owner_id: (r.owner_id as string) ?? null,
-      total_minutes: Number(r.total_minutes ?? 0),
-      total_sessions: Number(r.total_sessions ?? 0),
-      shipped_count: Number(r.shipped_count ?? 0),
+      name: String(r['name'] ?? "Untitled"),
+      description: (r['description'] as string) ?? null,
+      created_at: String(r['created_at'] ?? ""),
+      owner_username: (r['owner_username'] as string) ?? null,
+      owner_id: (r['owner_id'] as string) ?? null,
+      total_minutes: Number(r['total_minutes'] ?? 0),
+      total_sessions: Number(r['total_sessions'] ?? 0),
+      shipped_count: Number(r['shipped_count'] ?? 0),
     };
   } catch {
     return null;

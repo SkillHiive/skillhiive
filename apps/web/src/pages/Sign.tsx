@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
+import { safeNext } from "@/lib/returnTo";
 import { supabase } from "@/lib/supabase";
 import { useTokens } from "@/theme";
 import { Text } from "@skillhiive/ui";
@@ -47,6 +48,7 @@ const monoFont =
 
 export default function Sign() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { colors, spacing, radii, typography } = useTokens();
 
   const [email, setEmail] = useState("");
@@ -78,7 +80,7 @@ export default function Sign() {
       if (error) throw error;
 
       if (data.session) {
-        navigate("/");
+        navigate(safeNext(location.search) ?? "/");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
@@ -306,7 +308,9 @@ export default function Sign() {
               textAlign: "center",
             }}
           >
-            By continuing you agree to our Terms &amp; Privacy Policy.
+            By continuing you agree to our{" "}
+            <Link to="/terms" style={{ textDecoration: "underline" }}>Terms</Link> and{" "}
+                <Link to="/privacy" style={{ textDecoration: "underline" }}>Privacy Policy</Link>.
           </Text>
         </div>
       </div>

@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import {
   Pen,
   LogOut,
@@ -24,7 +24,7 @@ import SwipeLayout from "@/components/SwipeLayout";
 import { Button, Text } from "@skillhiive/ui";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
 import { useTokens } from "@/theme";
-import { useTheme } from "@/components/theme-provider";
+import { useTheme } from "@/components/themeContext";
 import { CodingTimeProfileCard } from "@/components/CodingTime";
 
 
@@ -118,7 +118,7 @@ export default function Profile() {
       if (!error && data) {
         setPosts(data);
         setHasMore(data.length === PAGE_SIZE);
-        setCursor(data.length > 0 ? data[data.length - 1].created_at : null);
+        setCursor(data.at(-1)?.created_at ?? null);
       }
       setLoadingPosts(false);
     },
@@ -142,7 +142,7 @@ export default function Profile() {
     if (data) {
       setPosts((prev) => [...prev, ...data]);
       setHasMore(data.length === PAGE_SIZE);
-      setCursor(data.length > 0 ? data[data.length - 1].created_at : cursor);
+      setCursor(data.at(-1)?.created_at ?? cursor);
     }
     isFetchingMore.current = false;
   }, [profile?.id, cursor, hasMore]);
@@ -154,7 +154,8 @@ export default function Profile() {
   async function uploadImage(blob: Blob, type: "avatar" | "banner") {
     const uid = profile?.id;
     if (!uid) return;
-    type === "avatar" ? setUploadingAv(true) : setUploadingBn(true);
+    if (type === "avatar") setUploadingAv(true);
+    else setUploadingBn(true);
     try {
       const path = `${uid}/${type}-${Date.now()}.jpg`;
       const { data, error: uploadErr } = await supabase.storage
@@ -171,7 +172,8 @@ export default function Profile() {
     } catch (e) {
       console.error("Upload failed:", e);
     } finally {
-      type === "avatar" ? setUploadingAv(false) : setUploadingBn(false);
+      if (type === "avatar") setUploadingAv(false);
+      else setUploadingBn(false);
     }
   }
 

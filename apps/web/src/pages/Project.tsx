@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, Clock, FolderGit2 } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import { useProjectCodingTime } from "@/hooks/useTimeTracker";
 import { CodingTimeBadge, LanguageBreakdown, WakatimeConnectCard } from "@/components/CodingTime";
 import {

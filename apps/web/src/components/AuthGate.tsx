@@ -1,5 +1,6 @@
-import { Navigate } from "react-router";
+import { Navigate, useLocation } from "react-router";
 import { useAuth } from "../hooks/useAuth";
+import { loginUrlFor, safeNext } from "../lib/returnTo";
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -9,15 +10,16 @@ interface AuthGateProps {
 
 export function AuthGate({ children, require = "auth", redirectTo }: AuthGateProps) {
   const session = useAuth();
+  const location = useLocation();
 
   if (session === undefined) return null;
 
   if (require === "auth" && !session) {
-    return <Navigate to={redirectTo ?? "/login"} replace />;
+    return <Navigate to={redirectTo ?? loginUrlFor(location.pathname + location.search)} replace />;
   }
 
   if (require === "guest" && session) {
-    return <Navigate to={redirectTo ?? "/home"} replace />;
+    return <Navigate to={redirectTo ?? safeNext(location.search) ?? "/home"} replace />;
   }
 
   return <>{children}</>;

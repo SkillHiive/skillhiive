@@ -1,18 +1,24 @@
 import { computePhase, type PhaseState } from "@/hooks/sessionPhase";
+import { serverNow } from "@/lib/room";
 import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useRoomSession(roomName: string) {
+/**
+ * `clockOffsetMs` is how far this computer's clock is behind the server's; the focus and break
+ * phases are computed on the server's time so everyone in the room sees the same one.
+ */
+export function useRoomSession(roomName: string, clockOffsetMs = 0) {
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [phaseState, setPhaseState] = useState<PhaseState>(computePhase(null));
 
   const startedAtRef = useRef<string | null>(null);
+  const offsetRef = useRef(clockOffsetMs);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startTicking = useCallback(() => {
     if (tickRef.current) return;
     tickRef.current = setInterval(() => {
-      setPhaseState(computePhase(startedAtRef.current));
+      setPhaseState(computePhase(startedAtRef.current, serverNow(offsetRef.current)));
     }, 1000);
   }, []);
 
@@ -31,7 +37,7 @@ export function useRoomSession(roomName: string) {
       if (ts && !startedAtRef.current) {
         startedAtRef.current = ts;
         setSessionStartedAt(ts);
-        setPhaseState(computePhase(ts));
+        setPhaseState(computePhase(ts, serverNow(offsetRef.current)));
         startTicking();
       }
     }
@@ -50,6 +56,13 @@ export function useRoomSession(roomName: string) {
       }
     };
   }, [roomName, startTicking]);
+
+  // A new offset (the token answer arrives after the first tick) takes effect on the next tick,
+  // and the phase is recomputed now so the clock does not wait a second to correct itself.
+  useEffect(() => {
+    offsetRef.current = clockOffsetMs;
+    if (startedAtRef.current) setPhaseState(computePhase(startedAtRef.current, serverNow(clockOffsetMs)));
+  }, [clockOffsetMs]);
 
   return { phaseState, sessionStartedAt };
 }

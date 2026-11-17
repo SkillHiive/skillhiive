@@ -17,3 +17,5 @@ export { default as Project } from "./Project";
 export { default as SettingsProfile } from "./SettingsProfile";
 export { default as SettingsTrackers } from "./SettingsTrackers";
 export { default as NotFound } from "./NotFound";
+export { Terms, Privacy } from "./Legal";
+export { default as CueLink } from "./CueLink";

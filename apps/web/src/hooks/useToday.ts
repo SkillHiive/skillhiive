@@ -153,7 +153,11 @@ export function useToday() {
       if (idx === -1) return prev;
       const next = idx + dir;
       if (next < 0 || next >= queued.length) return prev;
-      [queued[idx], queued[next]] = [queued[next], queued[idx]];
+      const current = queued[idx];
+      const swapped = queued[next];
+      if (!current || !swapped) return prev;
+      queued[idx] = swapped;
+      queued[next] = current;
       const queuedIds = new Set(queued.map((t) => t.id));
       return {
         ...prev,
@@ -174,6 +178,7 @@ export function useToday() {
       if (clamped === from) return prev;
       const next = [...queued];
       const [item] = next.splice(from, 1);
+      if (!item) return prev;
       next.splice(clamped, 0, item);
       const queuedIds = new Set(next.map((t) => t.id));
       return {

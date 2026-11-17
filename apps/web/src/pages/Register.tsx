@@ -719,7 +719,9 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
                   textAlign: "center",
                 }}
               >
-                By creating an account you agree to our Terms &amp; Privacy Policy.
+                By creating an account you agree to our{" "}
+                <Link to="/terms" style={{ textDecoration: "underline" }}>Terms</Link> and{" "}
+                <Link to="/privacy" style={{ textDecoration: "underline" }}>Privacy Policy</Link>.
               </Text>
             </>
           )}

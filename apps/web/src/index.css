@@ -207,3 +207,15 @@ body.focus-mode .cursor-glow {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/*
+ * The site-wide `* { outline: 0 !important }` (Layout.css) hides every keyboard focus ring.
+ * Pages that opt in with .focus-ring get a two-tone ring that shows on light and dark backgrounds.
+ * --ring-inner and --ring-outer are set on the page from the theme tokens.
+ */
+.focus-ring a:focus-visible,
+.focus-ring button:focus-visible,
+.focus-ring input:focus-visible,
+.focus-ring select:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring-inner), 0 0 0 4px var(--ring-outer);
+}

@@ -19,5 +19,16 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    // The React Compiler rules in eslint-plugin-react-hooks 7 flag long-standing patterns
+    // (Math.random or Date.now in render, setState at the start of an effect, refs read in render).
+    // Fixing them changes behaviour, so they stay visible as warnings until each is reviewed.
+    rules: {
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/static-components': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+    },
   },
 ])

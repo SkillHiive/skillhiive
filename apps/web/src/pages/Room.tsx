@@ -13,16 +13,30 @@ import {
 } from "@livekit/components-react";
 import type { TrackReference } from "@livekit/components-react";
 import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
-import type { Participant, RoomOptions } from "livekit-client";
+import type { Participant, RemoteParticipant, RoomOptions } from "livekit-client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { RoomLobby } from "@/hooks/RoomLobby";
 import { useParams } from "react-router";
-import { useProfile } from "@/hooks/profileContext";
+import { useProfile } from "@/hooks/useProfile";
 import { useRoomPresence } from "@/hooks/useRoomPresence";
 import { useRoomSession } from "@/hooks/useRoomSession";
 import { useTokens } from "@/theme/useTokens";
+import { errorMessage } from "@/lib/errors";
+import {
+  clockOffset,
+  CUBICLE_TOPIC,
+  decodeCubicleMessage,
+  encodeCubicleMessage,
+  type CubicleMessage,
+} from "@/lib/room";
 
 const LIVEKIT_URL = "wss://rooms.skillhiive.com";
 const TOKEN_ENDPOINT = "https://api.skillhivelabs.com/getToken";
+const CUBICLE_ENDPOINT = "https://api.skillhivelabs.com/cubicle";
+const NOTICE_MS = 6000;
+
+/** The token server turned us away: the room is at its cap. Not worth retrying. */
+class RoomFullError extends Error {}
 const TOKEN_FETCH_MAX_ATTEMPTS = 5;
 const SPEAKER_DEBOUNCE_MS = 800;
 const MAX_AUTO_RETRIES = 3;
@@ -122,7 +136,7 @@ function useAudioDevices() {
       if (outputs.length === 0)
         outputs.push({ id: "default", name: "Default Speaker" });
       setDevices(outputs);
-      setActiveId(outputs[0].id);
+      setActiveId(outputs[0]?.id ?? "default");
     });
   }, []);
 
@@ -140,7 +154,7 @@ function useAudioDevices() {
 
 export interface RoomScreenProps {
   onLeave: () => void;
-  supabase?: any;
+  supabase?: SupabaseClient;
 }
 
 export default function RoomScreen({
@@ -170,6 +184,9 @@ export default function RoomScreen({
   const [cubicleToken, setCubicleToken] = useState<string | null>(null);
   const [cubicleSet, setCubicleSet] = useState<Set<string>>(new Set());
   const [outputMenuOpen, setOutputMenuOpen] = useState(false);
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [roomFull, setRoomFull] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const intentionalLeaveRef = useRef(false);
   const connectedRef = useRef(false);
@@ -178,7 +195,9 @@ export default function RoomScreen({
   const syncRef = useRef<(() => void) | null>(null);
   const roomRef = useRef<Room | null>(null);
   const cubicleRoomRef = useRef<Room | null>(null);
-  const cubicleChannelRef = useRef<any>(null);
+  // The token the server gave us when it created a cubicle, held until the other person accepts.
+  const pendingCubicleRef = useRef<{ cubicleRoomName: string; token: string } | null>(null);
+  const handleCubicleMessageRef = useRef<(sender: string, message: CubicleMessage) => void>(() => {});
   const cubicleJoinCancelledRef = useRef(false);
   const cubicleRef = useRef<CubicleState>({ status: "idle" });
   const shownCubicleAlertRef = useRef<string | null>(null);
@@ -191,7 +210,7 @@ export default function RoomScreen({
     intentionalLeaveRef.current = true;
     setError("Couldn't join the room. Please try again.");
   });
-  const { phaseState } = useRoomSession(roomName ?? "");
+  const { phaseState } = useRoomSession(roomName ?? "", clockOffsetMs);
 
   const {
     devices: audioDevices,
@@ -226,11 +245,15 @@ export default function RoomScreen({
     (async () => {
       setLoading(true);
       setError(null);
+      setRoomFull(false);
       try {
         await fetchToken();
         if (!cancelled) setLivekitReady(true);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to join room");
+      } catch (e) {
+        if (!cancelled) {
+          if (e instanceof RoomFullError) setRoomFull(true);
+          setError(errorMessage(e) ?? "Failed to join room");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -277,30 +300,35 @@ export default function RoomScreen({
     return null;
   }
 
+  /** POST JSON to the token server as the signed-in user. */
+  async function authedPost(url: string, body: unknown): Promise<Response> {
+    const session = await resolveSession();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (session) headers["Authorization"] = `Bearer ${session.access_token}`;
+    return fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  }
+
   async function fetchToken() {
     if (!profile?.username) throw new Error("Profile not ready");
-
-    const session = await resolveSession();
-    const headers: Record<string, string> = {};
-    if (session) headers["Authorization"] = `Bearer ${session.access_token}`;
-
-    const params = new URLSearchParams({
-      room: roomName!,
-      username: profile.username,
-    });
 
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < TOKEN_FETCH_MAX_ATTEMPTS; attempt++) {
       try {
-        const res = await fetch(`${TOKEN_ENDPOINT}?${params.toString()}`, {
-          headers,
-        });
+        const sentAt = Date.now();
+        const res = await authedPost(TOKEN_ENDPOINT, { room: roomName });
+        const receivedAt = Date.now();
+        if (res.status === 409) throw new RoomFullError("This room is full");
         if (!res.ok) throw new Error(`Token server error: ${res.status}`);
         const data = await res.json();
         if (!data.token) throw new Error("No token received");
+        // Keep the phase clock on the server's time, not this computer's.
+        if (typeof data.serverTime === "number") {
+          setClockOffsetMs(clockOffset(sentAt, receivedAt, data.serverTime));
+        }
         setToken(data.token);
         return;
       } catch (err) {
+        if (err instanceof RoomFullError) throw err;
         lastErr = err;
         await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
@@ -309,80 +337,66 @@ export default function RoomScreen({
     throw lastErr instanceof Error ? lastErr : new Error("Failed to fetch token");
   }
 
+  /** The invited person's token for a cubicle the server created for them. */
   async function fetchCubicleToken(cubicleRoomName: string): Promise<string> {
-    let headers: Record<string, string> = {};
-    if (supabase) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) headers["Authorization"] = `Bearer ${session.access_token}`;
-    }
-    const res = await fetch(
-      `${TOKEN_ENDPOINT}?room=${cubicleRoomName}&username=${profile?.username}`,
-      { headers },
-    );
-    if (!res.ok) throw new Error(`Cubicle token error: ${res.status}`);
+    const res = await authedPost(TOKEN_ENDPOINT, { room: cubicleRoomName });
+    if (!res.ok) throw new Error(res.status === 403 ? "That cubicle isn't for you." : `Cubicle token error: ${res.status}`);
     const data = await res.json();
     if (!data.token) throw new Error("No cubicle token received");
     return data.token as string;
   }
 
-  useEffect(() => {
-    if (!roomName || !profile?.username || !supabase) return;
-    const ch = supabase.channel(`cubicle-signals:${roomName}`);
+  /** Ask the server for a private room with `target`; it names the room and issues our token. */
+  async function createCubicleOnServer(target: string): Promise<{ cubicleRoomName: string; token: string }> {
+    const res = await authedPost(CUBICLE_ENDPOINT, { room: roomName, target });
+    if (res.status === 403) throw new Error(`${target} is no longer in the room.`);
+    if (!res.ok) throw new Error(`Cubicle error: ${res.status}`);
+    const data = await res.json();
+    if (!data.cubicleRoomName || !data.token) throw new Error("No cubicle received");
+    return { cubicleRoomName: data.cubicleRoomName as string, token: data.token as string };
+  }
 
-    ch.on("broadcast", { event: "cubicle-request" }, ({ payload }: any) => {
-      if (payload.targetIdentity !== profile.username) return;
-      if (cubicleRef.current.status !== "idle") return;
-      setCubicle({
-        status: "incoming",
-        fromIdentity: payload.fromIdentity,
-        cubicleRoomName: payload.cubicleRoomName,
+  /** Cubicle messages travel as LiveKit data messages addressed to one person. */
+  async function sendCubicleMessage(target: string, message: CubicleMessage) {
+    const lp = roomRef.current?.localParticipant;
+    if (!lp) return;
+    try {
+      await lp.publishData(encodeCubicleMessage(message), {
+        reliable: true,
+        destinationIdentities: [target],
+        topic: CUBICLE_TOPIC,
       });
-    });
-    ch.on("broadcast", { event: "cubicle-accept" }, ({ payload }: any) => {
-      if (payload.targetIdentity !== profile.username) return;
-      if (cubicleRef.current.status !== "requesting") return;
-      joinCubicleRoom(payload.cubicleRoomName, payload.fromIdentity);
-    });
-    ch.on("broadcast", { event: "cubicle-decline" }, ({ payload }: any) => {
-      if (payload.targetIdentity !== profile.username) return;
-      cubicleJoinCancelledRef.current = true;
-      setCubicle({ status: "idle" });
-      alert(`${payload.fromIdentity} declined your cubicle request.`);
-    });
-    ch.on("broadcast", { event: "cubicle-end" }, ({ payload }: any) => {
-      if (payload.targetIdentity !== profile.username) return;
-      endCubicleLocal(payload.fromIdentity);
-    });
+    } catch {
+      setNotice(`Couldn't reach ${target}.`);
+    }
+  }
 
-    ch.subscribe();
-    cubicleChannelRef.current = ch;
-    return () => {
-      supabase.removeChannel(ch);
-      cubicleChannelRef.current = null;
-    };
-  }, [roomName, profile?.username]);
+  function forgetCubicleParticipants(...names: (string | null | undefined)[]) {
+    setCubicleSet((p) => {
+      const s = new Set(p);
+      for (const name of names) if (name) s.delete(name);
+      return s;
+    });
+  }
 
   async function sendCubicleRequest(targetIdentity: string) {
     if (!profile?.username) return;
     if (cubicleRef.current.status !== "idle") {
-      alert("End your current cubicle first.");
+      setNotice("End your current cubicle first.");
       return;
     }
-    const cubicleRoomName = `cubicle-${[profile.username, targetIdentity].sort().join("-")}-${Date.now()}`;
     cubicleJoinCancelledRef.current = false;
     setCubicle({ status: "requesting", targetIdentity });
-    setCubicleSet((p) => new Set(p).add(profile.username!).add(targetIdentity));
-    await cubicleChannelRef.current?.send({
-      type: "broadcast",
-      event: "cubicle-request",
-      payload: {
-        fromIdentity: profile.username,
-        targetIdentity,
-        cubicleRoomName,
-      },
-    });
+    try {
+      const made = await createCubicleOnServer(targetIdentity);
+      pendingCubicleRef.current = made;
+      setCubicleSet((p) => new Set(p).add(profile.username!).add(targetIdentity));
+      await sendCubicleMessage(targetIdentity, { event: "request", cubicleRoomName: made.cubicleRoomName });
+    } catch (e) {
+      pendingCubicleRef.current = null;
+      setCubicle({ status: "idle" });
+      setNotice(errorMessage(e) ?? "Couldn't open a cubicle.");
+    }
   }
 
   async function acceptCubicle() {
@@ -390,16 +404,16 @@ export default function RoomScreen({
     if (cur.status !== "incoming") return;
     const { fromIdentity, cubicleRoomName } = cur;
     cubicleJoinCancelledRef.current = false;
-    await cubicleChannelRef.current?.send({
-      type: "broadcast",
-      event: "cubicle-accept",
-      payload: {
-        fromIdentity: profile?.username,
-        targetIdentity: fromIdentity,
-        cubicleRoomName,
-      },
-    });
-    joinCubicleRoom(cubicleRoomName, fromIdentity);
+    try {
+      // Get our own token first, so the other side only joins once we can.
+      const cToken = await fetchCubicleToken(cubicleRoomName);
+      await sendCubicleMessage(fromIdentity, { event: "accept", cubicleRoomName });
+      await joinCubicleRoom(cubicleRoomName, fromIdentity, cToken);
+    } catch (e) {
+      setCubicle({ status: "idle" });
+      setNotice(errorMessage(e) ?? "Couldn't join the cubicle.");
+      await sendCubicleMessage(fromIdentity, { event: "decline" });
+    }
   }
 
   async function declineCubicle() {
@@ -407,31 +421,19 @@ export default function RoomScreen({
     if (cur.status !== "incoming") return;
     const { fromIdentity } = cur;
     cubicleJoinCancelledRef.current = true;
-    await cubicleChannelRef.current?.send({
-      type: "broadcast",
-      event: "cubicle-decline",
-      payload: {
-        fromIdentity: profile?.username,
-        targetIdentity: fromIdentity,
-      },
-    });
+    await sendCubicleMessage(fromIdentity, { event: "decline" });
     setCubicle({ status: "idle" });
-    setCubicleSet((p) => {
-      const s = new Set(p);
-      s.delete(profile?.username ?? "");
-      s.delete(fromIdentity);
-      return s;
-    });
+    forgetCubicleParticipants(profile?.username, fromIdentity);
   }
 
   async function joinCubicleRoom(
     cubicleRoomName: string,
     partnerIdentity: string,
+    cubicleToken: string,
   ) {
     try {
       await roomRef.current?.localParticipant.setMicrophoneEnabled(false);
       await roomRef.current?.localParticipant.setCameraEnabled(false);
-      const cToken = await fetchCubicleToken(cubicleRoomName);
       if (cubicleJoinCancelledRef.current) {
         await roomRef.current?.localParticipant.setMicrophoneEnabled(
           micEnabledRef.current,
@@ -441,13 +443,13 @@ export default function RoomScreen({
         );
         return;
       }
-      setCubicleToken(cToken);
+      setCubicleToken(cubicleToken);
       setCubicle({ status: "active", partnerIdentity, cubicleRoomName });
       setCubicleSet((p) =>
         new Set(p).add(profile?.username ?? "").add(partnerIdentity),
       );
-    } catch (e: any) {
-      alert(`Cubicle error: ${e.message}`);
+    } catch (e) {
+      setNotice(`Cubicle error: ${errorMessage(e) ?? "Unknown"}`);
       setCubicle({ status: "idle" });
       await roomRef.current?.localParticipant.setMicrophoneEnabled(
         micEnabledRef.current,
@@ -461,14 +463,7 @@ export default function RoomScreen({
   async function endCubicle() {
     const cur = cubicleRef.current;
     if (cur.status !== "active") return;
-    await cubicleChannelRef.current?.send({
-      type: "broadcast",
-      event: "cubicle-end",
-      payload: {
-        fromIdentity: profile?.username,
-        targetIdentity: cur.partnerIdentity,
-      },
-    });
+    await sendCubicleMessage(cur.partnerIdentity, { event: "end" });
     endCubicleLocal(cur.partnerIdentity);
   }
 
@@ -508,6 +503,60 @@ export default function RoomScreen({
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryTick]);
+
+  // `sender` is the authenticated LiveKit identity the message arrived from, never a field in it.
+  function handleCubicleMessage(sender: string, message: CubicleMessage) {
+    const cur = cubicleRef.current;
+    switch (message.event) {
+      case "request":
+        if (cur.status !== "idle" || !message.cubicleRoomName) return;
+        setCubicle({ status: "incoming", fromIdentity: sender, cubicleRoomName: message.cubicleRoomName });
+        return;
+      case "accept": {
+        if (cur.status !== "requesting" || cur.targetIdentity !== sender) return;
+        const pending = pendingCubicleRef.current;
+        if (!pending) return;
+        pendingCubicleRef.current = null;
+        void joinCubicleRoom(pending.cubicleRoomName, sender, pending.token);
+        return;
+      }
+      case "decline":
+        if (cur.status !== "requesting" || cur.targetIdentity !== sender) return;
+        cubicleJoinCancelledRef.current = true;
+        pendingCubicleRef.current = null;
+        setCubicle({ status: "idle" });
+        forgetCubicleParticipants(profile?.username, sender);
+        setNotice(`${sender} declined your cubicle request.`);
+        return;
+      case "end":
+        if (cur.status !== "active" || cur.partnerIdentity !== sender) return;
+        void endCubicleLocal(sender);
+        return;
+    }
+  }
+
+  useEffect(() => {
+    handleCubicleMessageRef.current = handleCubicleMessage;
+  });
+
+  useEffect(() => {
+    if (!profile?.username) return;
+    const onData = (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+      if (topic !== CUBICLE_TOPIC || !participant) return;
+      const message = decodeCubicleMessage(payload);
+      if (message) handleCubicleMessageRef.current(participant.identity, message);
+    };
+    room.on(RoomEvent.DataReceived, onData);
+    return () => {
+      room.off(RoomEvent.DataReceived, onData);
+    };
+  }, [room, profile?.username]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const cubicleRoom = useMemo(() => {
     if (cubicle.status !== "active" || !cubicleToken) return null;
@@ -567,7 +616,9 @@ export default function RoomScreen({
     const lp = r.localParticipant;
     try {
       await lp.setMicrophoneEnabled(false);
-    } catch {}
+    } catch {
+      // A blocked or missing device is not fatal: the state is read back from lp below.
+    }
 
     if (joinWithCam) {
       let camOk = false;
@@ -575,7 +626,7 @@ export default function RoomScreen({
         try {
           await lp.setCameraEnabled(true, {
             facingMode: joinWithFrontCam ? "user" : "environment",
-          } as any);
+          });
           camOk = true;
           setIsFrontCam(joinWithFrontCam);
         } catch {
@@ -585,7 +636,9 @@ export default function RoomScreen({
     } else {
       try {
         await lp.setCameraEnabled(false);
-      } catch {}
+      } catch {
+        // Already off or no device; nothing to undo.
+      }
     }
 
     micEnabledRef.current = lp.isMicrophoneEnabled;
@@ -619,7 +672,9 @@ export default function RoomScreen({
     if (!lp) return;
     try {
       await lp.setMicrophoneEnabled(!micEnabledRef.current);
-    } catch {}
+    } catch {
+      // A blocked device leaves the mic as it was; the real state is read back just below.
+    }
     micEnabledRef.current = lp.isMicrophoneEnabled;
     setMicEnabled(lp.isMicrophoneEnabled);
   }
@@ -630,14 +685,17 @@ export default function RoomScreen({
     if (!lp) return;
     try {
       await lp.setCameraEnabled(!camEnabledRef.current);
-    } catch {}
+    } catch {
+      // A blocked device leaves the camera as it was; the real state is read back just below.
+    }
     const actual = lp.isCameraEnabled;
     camEnabledRef.current = actual;
     setCamEnabled(actual);
     if (lp.identity)
       setCamOffSet((p) => {
         const s = new Set(p);
-        actual ? s.delete(lp.identity) : s.add(lp.identity);
+        if (actual) s.delete(lp.identity);
+        else s.add(lp.identity);
         return s;
       });
   }
@@ -651,12 +709,12 @@ export default function RoomScreen({
       if (pub?.track) await lp.unpublishTrack(pub.track);
       await lp.setCameraEnabled(true, {
         facingMode: nextFront ? "user" : "environment",
-      } as any);
+      });
       setIsFrontCam(nextFront);
       camEnabledRef.current = lp.isCameraEnabled;
       setCamEnabled(lp.isCameraEnabled);
-    } catch (e: any) {
-      alert(`Camera flip failed: ${e.message}`);
+    } catch (e) {
+      alert(`Camera flip failed: ${errorMessage(e) ?? "Unknown"}`);
     }
   }
 
@@ -706,7 +764,7 @@ export default function RoomScreen({
       <RoomLobby
         roomName={roomName ?? "Room"}
         username={profile?.username ?? ""}
-        onJoin={(withCam: any, isFront: any) => {
+        onJoin={(withCam: boolean, isFront?: boolean) => {
           setJoinWithCam(withCam);
           setJoinWithFrontCam(isFront ?? true);
           setLobbyDone(true);
@@ -815,6 +873,7 @@ export default function RoomScreen({
           {error ?? "Couldn't connect to the room."}
         </span>
         <div style={{ display: "flex", gap: 12 }}>
+          {!roomFull && (
           <button
             onClick={() => {
                reconnectAttemptRef.current = 0;
@@ -838,6 +897,7 @@ export default function RoomScreen({
           >
             Retry
           </button>
+          )}
           <button
             onClick={() => {
               intentionalLeaveRef.current = true;
@@ -855,7 +915,7 @@ export default function RoomScreen({
               fontFamily: "inherit",
             }}
           >
-            Leave
+            {roomFull ? "Back to rooms" : "Leave"}
           </button>
         </div>
       </div>
@@ -871,7 +931,7 @@ export default function RoomScreen({
         room={room}
         onConnected={handleConnected}
         onDisconnected={handleDisconnected}
-        onError={(e: any) => {
+        onError={(e) => {
           if (!connectedRef.current) {
             console.warn("LiveKit connect error:", e?.message ?? e);
             if (reconnectAttemptRef.current < MAX_AUTO_RETRIES) {
@@ -1070,9 +1130,7 @@ export default function RoomScreen({
             const cur = cubicleRef.current;
             endCubicleLocal(cur.status === "active" ? cur.partnerIdentity : "");
           }}
-          onError={(e: any) =>
-            alert(`Cubicle error: ${e?.message ?? "Unknown"}`)
-          }
+          onError={(e) => setNotice(`Cubicle error: ${errorMessage(e) ?? "Unknown"}`)}
           style={{ display: "contents" }}
         >
           <CubicleOverlay
@@ -1080,6 +1138,32 @@ export default function RoomScreen({
             onEnd={endCubicle}
           />
         </LiveKitRoom>
+      )}
+
+      {notice && (
+        <div
+          role="status"
+          onClick={() => setNotice(null)}
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 88,
+            transform: "translateX(-50%)",
+            maxWidth: "min(92vw, 420px)",
+            padding: "10px 16px",
+            borderRadius: 999,
+            background: colors.surface.secondary,
+            border: `1px solid ${colors.border.subtle}`,
+            color: colors.text.primary,
+            fontSize: 14,
+            fontWeight: 600,
+            textAlign: "center",
+            cursor: "pointer",
+            zIndex: 60,
+          }}
+        >
+          {notice}
+        </div>
       )}
     </>
   );
@@ -1599,7 +1683,9 @@ function ConferenceView({
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
       setDims({ w: width, h: height });
     });
     ro.observe(el);

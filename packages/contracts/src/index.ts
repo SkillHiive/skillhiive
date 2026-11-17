@@ -7,6 +7,7 @@ export * from "./api/user";
 export * from "./api/team";
 export * from "./api/sync";
 export * from "./api/cue";
+export * from "./api/cueSync";
 export * from "./api/orchestration";
 export * from "./api/feed";
 

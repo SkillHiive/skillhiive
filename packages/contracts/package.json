@@ -45,6 +45,11 @@
       "types": "./dist/api/orchestration.d.ts",
       "import": "./dist/api/orchestration.js",
       "default": "./dist/api/orchestration.js"
+    },
+    "./api/cueSync": {
+      "types": "./dist/api/cueSync.d.ts",
+      "import": "./dist/api/cueSync.js",
+      "default": "./dist/api/cueSync.js"
     }
   },
   "scripts": {

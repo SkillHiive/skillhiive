@@ -9,6 +9,11 @@ export function useRoomPresence(
   const userIdRef = useRef<string | null>(null);
   const joinedRef = useRef(false);
   const sessionTriggeredRef = useRef(false);
+  // The join effect must only re-run for a new room, so it reads the latest callback through a ref.
+  const onJoinFailedRef = useRef(onJoinFailed);
+  useEffect(() => {
+    onJoinFailedRef.current = onJoinFailed;
+  });
 
   useEffect(() => {
     if (!roomName) return;
@@ -20,7 +25,7 @@ export function useRoomPresence(
           error: userError,
         } = await supabase.auth.getUser();
         if (userError || !user) {
-          onJoinFailed?.();
+          onJoinFailedRef.current?.();
           return;
         }
 
@@ -43,7 +48,7 @@ export function useRoomPresence(
           .single();
 
         if (insertError || !data) {
-          onJoinFailed?.();
+          onJoinFailedRef.current?.();
           return;
         }
 
@@ -53,7 +58,7 @@ export function useRoomPresence(
           .eq("id", data.id)
           .single();
         if (verifyError || !verify) {
-          onJoinFailed?.();
+          onJoinFailedRef.current?.();
           return;
         }
 
@@ -70,7 +75,7 @@ export function useRoomPresence(
         }
       } catch (err) {
         console.error("Room join failed:", err);
-        onJoinFailed?.();
+        onJoinFailedRef.current?.();
       }
     }
 
