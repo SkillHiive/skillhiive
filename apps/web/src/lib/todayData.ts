@@ -13,6 +13,8 @@ export interface Project {
 export interface ProjectWithStats extends Project {
   total_minutes: number;
   total_sessions: number;
+  /** Whether people other than the owner can see it. Absent before 20261117000200, when every project was public. */
+  is_public?: boolean;
 }
 
 export interface HeatmapDay {

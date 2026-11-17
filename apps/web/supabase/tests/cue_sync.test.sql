@@ -58,7 +58,12 @@ insert into public.cue_project_days (user_id, device_id, project_key, date, seco
   ('00000000-0000-0000-0000-0000000000a1', :'device_id', 'private', current_date, 1200, 0, '{"shell":1200}', '[]', 0);
 select public.cue_after_sync('00000000-0000-0000-0000-0000000000a1', :'device_id');
 
-select pg_temp.check((select today_project_id from public.cue_projects) = '00000000-0000-0000-0000-00000000c001', 'a matching project name is mapped automatically');
+-- Since 20261117000200 a matching name is only suggested by the website; the user links it.
+select pg_temp.check((select today_project_id from public.cue_projects) is null, 'a matching project name is not linked automatically');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select public.map_cue_project(:'device_id', 'p_0123456789abcdef', '00000000-0000-0000-0000-00000000c001');
+select pg_temp.as_user(null);
+select pg_temp.check((select today_project_id from public.cue_projects) = '00000000-0000-0000-0000-00000000c001', 'the user links it');
 select pg_temp.check((select total_seconds from public.project_coding_time where project_id = '00000000-0000-0000-0000-00000000c001') = 6300, 'the project total is the sum of its named days');
 select pg_temp.check((select agent_seconds from public.project_coding_time where project_id = '00000000-0000-0000-0000-00000000c001') = 1500, 'the project agent share is summed');
 select pg_temp.check((select total_seconds from public.user_coding_stats where user_id = '00000000-0000-0000-0000-0000000000a1') = 7500, 'the user total includes the private bucket');

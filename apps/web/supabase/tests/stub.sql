@@ -21,6 +21,10 @@ create table public.today_projects (
   color text,
   created_at timestamptz not null default now()
 );
+-- As in 20260822000000_today_solo.sql: owners write their projects; reads are opened by later migrations.
+alter table public.today_projects enable row level security;
+create policy "today_projects owner all" on public.today_projects
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create table public.focus_sessions (id uuid primary key default gen_random_uuid(), project_id uuid, duration_seconds int);
 create table public.session_notes (id uuid primary key default gen_random_uuid(), project_id uuid, ritual_type text);
 

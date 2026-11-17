@@ -51,7 +51,9 @@ import {
   MicOff,
   Flame,
   ShieldAlert,
+  Lock,
 } from "lucide-react";
+import { CueProjectsPanel } from "@/components/CodingTime/CueProjectsPanel";
 
 const CYCLE_SEC = 3600; // 50m focus + 10m break
 const FOCUS_SEC = 3000;
@@ -348,6 +350,11 @@ function ProjectsCard() {
     await deleteProject(id);
   }
 
+  async function reload() {
+    if (!profile?.id) return;
+    setProjects(await fetchUserProjects(profile.id));
+  }
+
   return (
     <div
       style={{
@@ -396,6 +403,11 @@ function ProjectsCard() {
             <Text variant="bodySm" weight={600} style={{ flex: 1, minWidth: 0 }}>
               {p.name}
             </Text>
+            {p.is_public === false && (
+              <span title="Only you can see this project" aria-label="Only you can see this project" style={{ display: "inline-flex" }}>
+                <Lock size={12} color={colors.text.tertiary} />
+              </span>
+            )}
             <Text variant="caption" tone="tertiary">
               {formatHours(p.total_minutes)}
             </Text>
@@ -405,6 +417,8 @@ function ProjectsCard() {
           </div>
         ))
       )}
+
+      <CueProjectsPanel projects={projects} onChanged={() => void reload()} />
 
       <div style={{ display: "flex", gap: spacing.sm }}>
         <input

@@ -4,8 +4,9 @@ import { ArrowLeft, Clock, FolderGit2 } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { useProfile } from "@/hooks/useProfile";
-import { useProjectCodingTime } from "@/hooks/useTimeTracker";
+import { useProjectCodingTime, useTrackerConnection } from "@/hooks/useTimeTracker";
 import { CodingTimeBadge, LanguageBreakdown, WakatimeConnectCard } from "@/components/CodingTime";
+import { ProjectCueSources } from "@/components/CodingTime/ProjectCueSources";
 import {
   fetchProjectSummary,
   fetchProjectShipped,
@@ -33,7 +34,8 @@ export default function Project() {
   const [notFound, setNotFound] = useState(false);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  const { coding } = useProjectCodingTime(id);
+  const { coding, refresh: refreshCoding } = useProjectCodingTime(id);
+  const { connection } = useTrackerConnection();
   const isOwner = !!me && !!summary?.owner_id && me.id === summary.owner_id;
 
   const loading = loadedFor !== (id ?? null);
@@ -175,11 +177,17 @@ export default function Project() {
           </Text>
         )}
 
-        {/* Auto-tracked time — owner manages, visitors see it when public */}
-        {isOwner && id ? (
+        {/* Who can see it and which Cue projects feed it: owner only. */}
+        {isOwner && id && (
+          <ProjectCueSources projectId={id} projectName={summary.name} onChanged={refreshCoding} />
+        )}
+
+        {/* Auto-tracked time. The tracker card manages tracker links; everyone
+            else (and owners without a tracker) see the numbers themselves. */}
+        {isOwner && id && connection ? (
           <WakatimeConnectCard projectId={id} projectName={summary.name} />
         ) : (
-          coding && coding.is_public && (
+          coding && (coding.is_public || isOwner) && coding.total_seconds > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
               <CodingTimeBadge
                 totalSeconds={coding.total_seconds}
