@@ -42,10 +42,10 @@ export default function AccountMenu() {
     <Menu>
       <MenuButton
         aria-label="Account menu"
-        className="grid size-10 place-items-center overflow-hidden rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] text-sm font-semibold text-[var(--color-text-primary)]"
+        className="nav-block grid size-[45px] place-items-center p-1 text-sm font-semibold text-black transition-ui hover:scale-[1.05] active:scale-[1] dark:text-white"
       >
         {profile?.avatar ? (
-          <img src={profile.avatar} alt="" className="size-full object-cover" />
+          <img src={profile.avatar} alt="" className="size-full rounded-xl object-cover" />
         ) : (
           <span aria-hidden="true">{initial}</span>
         )}

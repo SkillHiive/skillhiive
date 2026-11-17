@@ -31,8 +31,3 @@ export function activeTab(pathname: string, myUsername?: string | null): NavTab 
 export function hidesNav(pathname: string): boolean {
   return /^\/rooms\/[^/]+/.test(normalise(pathname));
 }
-
-/** Signed-out pages drawn on a dark photo or video; the header sits on top of them. */
-export function isOverlayPage(pathname: string): boolean {
-  return ["/", "/login", "/register", "/reset-password"].includes(normalise(pathname));
-}

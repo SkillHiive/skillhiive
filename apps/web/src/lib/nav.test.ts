@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeTab, hidesNav, isOverlayPage } from "./nav";
+import { activeTab, hidesNav } from "./nav";
 
 describe("activeTab", () => {
   it("maps each primary route to its tab", () => {
@@ -35,13 +35,5 @@ describe("hidesNav", () => {
     expect(hidesNav("/rooms/night-shift")).toBe(true);
     expect(hidesNav("/rooms")).toBe(false);
     expect(hidesNav("/rooms/")).toBe(false);
-  });
-});
-
-describe("isOverlayPage", () => {
-  it("knows the signed-out pages drawn on dark media", () => {
-    expect(isOverlayPage("/")).toBe(true);
-    expect(isOverlayPage("/login")).toBe(true);
-    expect(isOverlayPage("/home")).toBe(false);
   });
 });
