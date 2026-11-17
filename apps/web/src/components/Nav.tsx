@@ -12,7 +12,6 @@ const SIGNED_IN_TABS: Tab[] = [
   { id: "today", to: "/home", label: "Home", icon: "fa-regular fa-home" },
   { id: "rooms", to: "/rooms", label: "Rooms", icon: "fa-solid fa-door-open" },
   { id: "feed", to: "/feed", label: "Feed", icon: "fa-regular fa-comment" },
-  { id: "you", to: "/profile", label: "Profile", icon: "fa-regular fa-user" },
 ];
 
 type Pill = { left: number; top: number; width: number; height: number; opacity: number };
@@ -20,6 +19,7 @@ type Pill = { left: number; top: number; width: number; height: number; opacity:
 /**
  * The floating pill navigation with the sliding yellow highlight. The highlight sits on
  * the page you're on and follows the pointer (or keyboard focus) while you look around.
+ * "You" is the avatar button beside the bell, not a tab, so there is one way to your profile.
  * The class "nav" lets focus mode hide it.
  */
 const Nav = () => {
@@ -123,7 +123,7 @@ const Nav = () => {
         {signedIn && (
           <>
             <NotificationBell />
-            <AccountMenu />
+            <AccountMenu active={current === "you"} />
           </>
         )}
       </div>
