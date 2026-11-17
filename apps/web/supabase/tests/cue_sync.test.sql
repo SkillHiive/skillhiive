@@ -161,4 +161,15 @@ select pg_temp.check((select count(*) from public.cue_project_days) = 0, 'removi
 select pg_temp.check((select total_seconds from public.user_coding_stats where user_id = '00000000-0000-0000-0000-0000000000a1') = 0, 'the totals follow');
 reset role;
 
+-- ── Who may call what (20261117000000_cue_function_grants.sql) ─────────────
+select pg_temp.check(not has_function_privilege('anon', 'public.coding_time_source_of(uuid)', 'execute'), 'anon cannot read anyone''s coding source');
+select pg_temp.check(not has_function_privilege('authenticated', 'public.coding_time_source_of(uuid)', 'execute'), 'nor can a signed-in user call the helper directly');
+select pg_temp.check(not has_function_privilege('anon', 'public.reaggregate_tracker_time_impl(uuid)', 'execute'), 'the tracker body is internal');
+select pg_temp.check(not has_function_privilege('anon', 'public.cue_code_hash(text)', 'execute'), 'the code hash is internal');
+select pg_temp.check(not has_function_privilege('anon', 'public.approve_cue_link(text)', 'execute'), 'anon cannot approve a link');
+select pg_temp.check(has_function_privilege('authenticated', 'public.approve_cue_link(text)', 'execute'), 'a signed-in user can approve a link');
+select pg_temp.check(not has_function_privilege('anon', 'public.reaggregate_cue_time(uuid)', 'execute'), 'anon cannot re-aggregate');
+select pg_temp.check(has_function_privilege('service_role', 'public.reaggregate_tracker_time(uuid)', 'execute'), 'the tracker sync can still re-aggregate');
+select pg_temp.check(has_function_privilege('anon', 'public.get_user_coding_extras(uuid)', 'execute'), 'public profiles can still read extras');
+
 \echo cue_sync: all checks passed

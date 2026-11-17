@@ -11,6 +11,8 @@ createdb shtest
 psql -d shtest -v ON_ERROR_STOP=1 -f supabase/tests/stub.sql
 psql -d shtest -v ON_ERROR_STOP=1 -f supabase/migrations/20260823000000_time_trackers.sql
 psql -d shtest -v ON_ERROR_STOP=1 -f supabase/migrations/20261115000000_cue_sync.sql
+psql -d shtest -v ON_ERROR_STOP=1 -f supabase/migrations/20261117000000_cue_function_grants.sql
+psql -d shtest -v ON_ERROR_STOP=1 -f supabase/migrations/20261117000100_cue_fk_indexes.sql
 psql -d shtest -v ON_ERROR_STOP=1 -f supabase/tests/cue_sync.test.sql
 ```
 
