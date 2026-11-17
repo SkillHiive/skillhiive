@@ -38,9 +38,9 @@ export default function NotificationList({
   const { colors, spacing, radii } = useTokens();
   const navigate = useNavigate();
 
-  const goProfile = (id: string) => {
+  const goProfile = (id: string, username?: string | null) => {
     onNavigate?.();
-    navigate(`/profile/${id}`);
+    navigate(username ? `/p/${encodeURIComponent(username)}` : `/profile/${id}`);
   };
 
   if (loading) {
@@ -79,7 +79,7 @@ export default function NotificationList({
               }}
             >
               <div
-                onClick={() => goProfile(req.requester.id)}
+                onClick={() => goProfile(req.requester.id, req.requester.username)}
                 style={{ display: "flex", alignItems: "center", gap: spacing.md, padding: spacing.md, cursor: "pointer" }}
               >
                 <Avatar name={req.requester.displayname ?? "?"} source={req.requester.avatar} size={44} />
@@ -134,7 +134,7 @@ export default function NotificationList({
           {accepted.map((req) => (
             <div
               key={req.id}
-              onClick={() => goProfile(req.requester.id)}
+              onClick={() => goProfile(req.requester.id, req.requester.username)}
               style={{ display: "flex", alignItems: "center", gap: spacing.md, padding: spacing.md, border: `1px solid ${colors.border.subtle}`, borderRadius: radii.lg, background: colors.surface.primary, cursor: "pointer" }}
             >
               <Avatar name={req.requester.displayname ?? "?"} source={req.requester.avatar} size={44} />

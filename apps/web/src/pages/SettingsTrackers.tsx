@@ -197,11 +197,11 @@ export default function SettingsTrackers() {
 
           <div>
             <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
-              Time tracker
+              Coding time
             </Text>
             <Text variant="bodySm" tone="secondary">
-              Link Cue, or connect Wakatime or Hackatime, to show your coding
-              time on SkillHive.
+              Cue counts your coding time on your own computer. Wakatime and
+              Hackatime still work if you already use them.
             </Text>
           </div>
 
@@ -275,12 +275,9 @@ export default function SettingsTrackers() {
                         No projects linked yet
                       </Text>
                       <Text variant="caption" tone="secondary" style={{ display: "block", marginTop: 2 }}>
-                        Your tracker has coding data but it's not linked to any SkillHive project.
-                        Open a project on <Text tone="skillhive">/home</Text> or the <Text tone="skillhive">Projects</Text> page
-                        and click <Text tone="skillhive" weight={700}>"Link projects"</Text> to connect them.
-                      </Text>
-                      <Text variant="caption" tone="skillhive" weight={700} style={{ display: "block", marginTop: 4 }}>
-                        ⚡ Time is auto-fetched from Hackatime/Wakatime — no manual entry ever
+                        Your tracker has coding time that isn't attached to a project yet. On
+                        Today, open a project and choose “Link projects”. The time then
+                        comes in by itself.
                       </Text>
                     </div>
                     <button
@@ -299,7 +296,7 @@ export default function SettingsTrackers() {
                         flexShrink: 0,
                       }}
                     >
-                      Go to /home
+                      Go to Today
                     </button>
                   </div>
                 </Card>
@@ -337,8 +334,8 @@ export default function SettingsTrackers() {
                 </Text>
                 <Text variant="bodySm" tone="tertiary">
                   Coding time is linked per project. Open one of your{" "}
-                  {projectCount} project{projectCount === 1 ? "" : "s"} on /home
-                  and hit “Link projects” to connect its tracked time.
+                  {projectCount} project{projectCount === 1 ? "" : "s"} on Today
+                  and choose “Link projects” to attach its tracked time.
                 </Text>
               </Card>
             </>

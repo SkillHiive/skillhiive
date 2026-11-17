@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Clock, FolderGit2, Keyboard, Pencil } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router";
+import { Clock, FolderGit2, Keyboard, Pencil } from "lucide-react";
+import AllyButton from "@/components/AllyButton";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { PostCard, type PostModel } from "@/components/feed/PostCards";
+import { useAuth } from "@/hooks/useAuth";
+import { countAllies } from "@/lib/allies";
+import { loadErrorMessage } from "@/lib/load";
+import { fetchUserPosts } from "@/lib/posts";
 import { Text } from "@skillhiive/ui";
 import { Heatmap } from "@/components/ui/Heatmap";
 import { useTokens } from "@/theme";
@@ -38,6 +45,8 @@ export default function UserProfile() {
   const navigate = useNavigate();
   const { colors, spacing, radii } = useTokens();
   const { profile: me } = useProfile();
+  const session = useAuth();
+  const signedIn = !!session;
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [stats, setStats] = useState<FocusStats | null>(null);
@@ -45,6 +54,9 @@ export default function UserProfile() {
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [shipped, setShipped] = useState<ShippedNote[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [allyCount, setAllyCount] = useState<number | null>(null);
+  const [posts, setPosts] = useState<PostModel[]>([]);
 
   const { stats: codingStats } = useUserCodingStats(profile?.id);
   const isOwnProfile = !!me && profile?.id === me.id;
@@ -55,25 +67,42 @@ export default function UserProfile() {
     if (!username || loadedFor === username) return;
     let cancelled = false;
     (async () => {
-      const p = await fetchPublicProfile(username);
+      let p: PublicProfile | null;
+      try {
+        p = await fetchPublicProfile(username);
+      } catch (e) {
+        if (cancelled) return;
+        setProfile(null);
+        setLoadError(loadErrorMessage(e, "this profile"));
+        setLoadedFor(username);
+        return;
+      }
       if (cancelled) return;
+      setLoadError(null);
       setProfile(p);
       setStats(null);
       setHeatmap([]);
       setProjects([]);
       setShipped([]);
+      setPosts([]);
+      setAllyCount(null);
       setLoadedFor(username);
       if (p) {
         void fetchFocusStats(p.id).then((s) => !cancelled && setStats(s));
         void fetchHeatmap(p.id, 365).then((h) => !cancelled && setHeatmap(h));
         void fetchUserProjects(p.id).then((pr) => !cancelled && setProjects(pr));
         void fetchRecentShipped(p.id, 10).then((s) => !cancelled && setShipped(s));
+        // Posts and allies are only readable when signed in.
+        if (signedIn) {
+          void fetchUserPosts(p.id).then((list) => !cancelled && setPosts(list)).catch(() => {});
+          void countAllies(p.id).then((n) => !cancelled && setAllyCount(n)).catch(() => {});
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [username, loadedFor]);
+  }, [username, loadedFor, signedIn]);
 
   const displayName = profile?.displayname ?? "—";
 
@@ -93,6 +122,30 @@ export default function UserProfile() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: colors.bg.muted,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: spacing.base,
+          fontFamily: FONT,
+        }}
+      >
+        <ErrorState
+          message={loadError}
+          onRetry={() => {
+            setLoadError(null);
+            setLoadedFor(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (!profile) {
     return (
       <div
@@ -107,15 +160,10 @@ export default function UserProfile() {
           fontFamily: FONT,
         }}
       >
-        <Text tone="tertiary">@{username} not found.</Text>
-        <button
-          onClick={() => navigate(-1)}
-          style={{ background: "transparent", border: "none", cursor: "pointer" }}
-        >
-          <Text tone="tint" weight={600}>
-            Go back
-          </Text>
-        </button>
+        <Text tone="secondary">Nobody here goes by @{username}.</Text>
+        <Link to={signedIn ? "/home" : "/"} style={{ fontWeight: 600 }}>
+          {signedIn ? "Go to Today" : "Go to the home page"}
+        </Link>
       </div>
     );
   }
@@ -140,27 +188,6 @@ export default function UserProfile() {
           gap: spacing.lg,
         }}
       >
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: colors.text.secondary,
-            fontFamily: "inherit",
-            fontSize: 14,
-            fontWeight: 600,
-            padding: 0,
-            width: "fit-content",
-          }}
-        >
-          <ArrowLeft size={18} />
-          Back
-        </button>
-
         {/* Header */}
         <div style={{ display: "flex", gap: spacing.base, alignItems: "center" }}>
           <div
@@ -206,6 +233,20 @@ export default function UserProfile() {
               >
                 {profile.bio}
               </Text>
+            )}
+            {allyCount !== null && (
+              <Text variant="caption" tone="secondary" style={{ display: "block", marginTop: 4 }}>
+                {allyCount === 1 ? "1 ally" : `${allyCount} allies`}
+              </Text>
+            )}
+            {me?.id !== profile.id && (
+              <div style={{ marginTop: spacing.sm }}>
+                <AllyButton
+                  profileId={profile.id}
+                  returnTo={`/p/${encodeURIComponent(profile.username ?? username ?? "")}`}
+                  onAlliesChanged={(d) => setAllyCount((n) => (n ?? 0) + d)}
+                />
+              </div>
             )}
             {me?.id === profile.id && (
               <button
@@ -258,7 +299,7 @@ export default function UserProfile() {
           </div>
         </div>
 
-        {/* Auto-tracked coding time (Wakatime/Hackatime) */}
+        {/* Auto-tracked coding time (Cue, or an earlier tracker) */}
         {codingStats && codingStats.total_seconds > 0 ? (
           <div
             style={{
@@ -361,8 +402,8 @@ export default function UserProfile() {
               </Text>
             </div>
             <Text variant="bodySm" tone="tertiary">
-              Connect Wakatime or Hackatime and your verified coding hours,
-              languages, and streaks show up here automatically.
+              Connect Cue and your coding time shows up here on its own.
+              Project names stay private until you share them.
             </Text>
             <button
               onClick={() => navigate("/settings/trackers")}
@@ -379,7 +420,7 @@ export default function UserProfile() {
                 cursor: "pointer",
               }}
             >
-              Connect a time tracker
+              Connect Cue
             </button>
           </div>
         ) : null}
@@ -457,6 +498,18 @@ export default function UserProfile() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Posts (readable when signed in) */}
+        {posts.length > 0 && (
+          <section aria-label="Posts" style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
+            <Text variant="label" tone="secondary">
+              Posts
+            </Text>
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} myId={me?.id ?? null} hideAuthor />
+            ))}
+          </section>
         )}
       </div>
     </div>

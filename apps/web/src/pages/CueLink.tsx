@@ -79,7 +79,7 @@ export default function CueLink() {
     body = (
       <>
         <Text variant="bodySm" tone="secondary">
-          Sign in to SkillHive and you will come straight back here to finish linking your computer.
+          Sign in to SkillHiive and you will come straight back here to finish linking your computer.
         </Text>
         <Link to={loginUrlFor(location.pathname + location.search)} style={{ ...button, textDecoration: "none", width: "fit-content" }}>Sign in</Link>
       </>
@@ -117,7 +117,7 @@ export default function CueLink() {
           </div>
         </div>
         <Text variant="bodySm" tone="secondary">
-          Linking lets this computer send your daily coding totals to SkillHive. Project names are sent only
+          Linking lets this computer send your daily coding totals to SkillHiive. Project names are sent only
           for projects you publish with <code>cue publish</code>; commands, file names and paths are never sent.
           Only approve a code you just saw in your own terminal.
         </Text>

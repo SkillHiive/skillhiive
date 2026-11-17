@@ -117,6 +117,7 @@ export function cueErrorMessage(message: string | undefined, code?: string): str
   if (/link_used/.test(text)) return "That code was already used. Run cue login again for a new one.";
   if (/not_authenticated/.test(text)) return "Sign in first, then open the link again.";
   if (/not_found/.test(text)) return "That wasn't found. It may already have been removed.";
+  if (text === "exists") return "You already have a project with that name. Add this to it instead.";
   return text.length > 0 ? text : "Something went wrong. Try again.";
 }
 
@@ -205,6 +206,135 @@ export function mapCueProject(
     p_project_key: projectKey,
     p_today_project_id: todayProjectId,
   });
+}
+
+/** One repository as its owner sees it: every machine's copy, joined by git remote. */
+export interface CueProjectGroup {
+  /** The git remote, or device and key for a project without one. */
+  id: string;
+  name: string;
+  remote: string | null;
+  members: { device_id: string; project_key: string }[];
+  device_names: string[];
+  today_project_id: string | null;
+  total_seconds: number;
+  last_date: string | null;
+}
+
+/** Joins each repository's copies across machines, most recently worked on first. */
+export function groupCueProjects(projects: CueProject[], devices: CueDevice[]): CueProjectGroup[] {
+  const deviceName = new Map(devices.map((device) => [device.id, device.name]));
+  const groups = new Map<string, CueProjectGroup>();
+  for (const project of projects) {
+    const id = project.remote ?? `${project.device_id}:${project.project_key}`;
+    let group = groups.get(id);
+    if (!group) {
+      group = {
+        id,
+        name: project.name,
+        remote: project.remote,
+        members: [],
+        device_names: [],
+        today_project_id: null,
+        total_seconds: 0,
+        last_date: null,
+      };
+      groups.set(id, group);
+    }
+    group.members.push({ device_id: project.device_id, project_key: project.project_key });
+    const name = deviceName.get(project.device_id);
+    if (name && !group.device_names.includes(name)) group.device_names.push(name);
+    group.today_project_id ??= project.today_project_id;
+    group.total_seconds += project.total_seconds;
+    if (project.last_date && (!group.last_date || project.last_date > group.last_date)) {
+      group.last_date = project.last_date;
+      group.name = project.name;
+    }
+  }
+  return [...groups.values()].sort(
+    (a, b) => (b.last_date ?? "").localeCompare(a.last_date ?? "") || a.name.localeCompare(b.name),
+  );
+}
+
+/** A SkillHiive project as the Projects card lists it. */
+export interface PanelProject {
+  id: string;
+  name: string;
+  /** Absent when the server predates project visibility; every project was public then. */
+  is_public?: boolean;
+}
+
+/** Others see a project's Cue time only when the project and its coding time are both public. */
+export function isPublicProject(project: PanelProject | undefined, codingPublic: Map<string, boolean>): boolean {
+  if (!project) return false;
+  return project.is_public !== false && codingPublic.get(project.id) === true;
+}
+
+/** The user's project that looks like this repository, by name or the repository's last path part. */
+export function suggestedProject<T extends { id: string; name: string }>(group: CueProjectGroup, mine: T[]): T | null {
+  const names = new Set([group.name.toLowerCase()]);
+  const tail = group.remote?.split("/").pop();
+  if (tail) names.add(tail.toLowerCase());
+  return mine.find((project) => names.has(project.name.trim().toLowerCase())) ?? null;
+}
+
+/** A private SkillHiive project made from a Cue project, linked on every machine that has it. */
+export async function createProjectFromCue(
+  deviceId: string,
+  projectKey: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const { data, error } = await supabase.rpc("create_project_from_cue", {
+      p_device_id: deviceId,
+      p_project_key: projectKey,
+    });
+    if (error) return { ok: false, error: cueErrorMessage(error.message, error.code) };
+    return { ok: true, id: String(data) };
+  } catch (e) {
+    return { ok: false, error: cueErrorMessage(e instanceof Error ? e.message : undefined) };
+  }
+}
+
+/** Shows or hides a project and its coding time together. */
+export function setProjectVisibility(projectId: string, isPublic: boolean): Promise<CueResult> {
+  return call("set_project_visibility", { p_project_id: projectId, p_is_public: isPublic });
+}
+
+/** Which of my projects have public coding time (rows are owner-readable). */
+export async function fetchMyCodingVisibility(): Promise<Map<string, boolean>> {
+  try {
+    const { data, error } = await supabase.from("project_coding_time").select("project_id, is_public");
+    if (error) return new Map();
+    return new Map(rows(data).map((r) => [String(r["project_id"]), r["is_public"] === true]));
+  } catch {
+    return new Map();
+  }
+}
+
+/** Whether a project is visible to others; true when the server predates project visibility. */
+export async function fetchProjectIsPublic(projectId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("today_projects").select("is_public").eq("id", projectId).maybeSingle();
+    if (error || !data) return true;
+    return (data as Record<string, unknown>)["is_public"] !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** Seconds in projects kept on the user's machines, since a local date (YYYY-MM-DD). */
+export async function fetchPrivateWorkSeconds(sinceDate: string): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("cue_project_days")
+      .select("seconds")
+      .eq("project_key", "private")
+      .gte("date", sinceDate);
+    if (error) return 0;
+    return rows(data).reduce((sum, r) => sum + Number(r["seconds"] ?? 0), 0);
+  } catch {
+    return 0;
+  }
 }
 
 export async function fetchCodingTimeSource(): Promise<CodingTimeSource> {

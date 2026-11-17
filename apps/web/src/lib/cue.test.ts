@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("./supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from "./supabase";
-import { agentSharePercent, cueErrorMessage, earlierHistoryNote, fetchUserCodingExtras, formatCueSince, normalizeLinkCode, summarizeComparison } from "./cue";
+import { agentSharePercent, cueErrorMessage, earlierHistoryNote, fetchUserCodingExtras, formatCueSince, groupCueProjects, normalizeLinkCode, suggestedProject, summarizeComparison } from "./cue";
 
 describe("normalizeLinkCode", () => {
   it("accepts the code however it was typed", () => {
@@ -81,5 +81,41 @@ describe("earlierHistoryNote", () => {
     expect(earlierHistoryNote({ source: "cue", cue_since: null })).toBeNull();
     expect(earlierHistoryNote({ source: "tracker", cue_since: "2026-11-16" })).toBeNull();
     expect(earlierHistoryNote(null)).toBeNull();
+  });
+});
+
+describe("groupCueProjects", () => {
+  const devices = [
+    { id: "d1", name: "air", platform: "", created_at: "", last_seen_at: null, revoked_at: null },
+    { id: "d2", name: "studio", platform: "", created_at: "", last_seen_at: null, revoked_at: null },
+  ];
+  const row = (device_id: string, project_key: string, name: string, remote: string | null, seconds: number, last_date: string | null, today_project_id: string | null = null) =>
+    ({ device_id, project_key, name, remote, today_project_id, total_seconds: seconds, last_date });
+
+  it("joins one repository's copies across machines by remote", () => {
+    const groups = groupCueProjects(
+      [row("d1", "p_a", "stager-1", "github.com/me/stager-1", 600, "2026-11-15"), row("d2", "p_b", "stager", "github.com/me/stager-1", 300, "2026-11-16", "t1")],
+      devices,
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ name: "stager", total_seconds: 900, device_names: ["air", "studio"], today_project_id: "t1", last_date: "2026-11-16" });
+    expect(groups[0]!.members).toHaveLength(2);
+  });
+
+  it("keeps projects without a remote apart, most recent first", () => {
+    const groups = groupCueProjects(
+      [row("d1", "p_a", "notes", null, 60, "2026-11-01"), row("d2", "p_b", "notes", null, 60, "2026-11-10"), row("d1", "p_c", "old", null, 60, null)],
+      devices,
+    );
+    expect(groups.map((group) => group.id)).toEqual(["d2:p_b", "d1:p_a", "d1:p_c"]);
+  });
+});
+
+describe("suggestedProject", () => {
+  const group = { id: "github.com/me/herebyinvite", name: "hbi-web", remote: "github.com/me/herebyinvite", members: [], device_names: [], today_project_id: null, total_seconds: 0, last_date: null };
+  it("matches by name or by the repository's last path part, ignoring case", () => {
+    expect(suggestedProject(group, [{ id: "a", name: "Other" }, { id: "b", name: "HerebyInvite " }])?.id).toBe("b");
+    expect(suggestedProject({ ...group, remote: null }, [{ id: "c", name: "HBI-web" }])?.id).toBe("c");
+    expect(suggestedProject({ ...group, remote: null }, [{ id: "b", name: "HerebyInvite" }])).toBeNull();
   });
 });

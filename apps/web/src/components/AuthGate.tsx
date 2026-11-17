@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router";
 import { useAuth } from "../hooks/useAuth";
 import { loginUrlFor, safeNext } from "../lib/returnTo";
+import PageFallback from "./PageFallback";
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ export function AuthGate({ children, require = "auth", redirectTo }: AuthGatePro
   const session = useAuth();
   const location = useLocation();
 
-  if (session === undefined) return null;
+  if (session === undefined) return <PageFallback />;
 
   if (require === "auth" && !session) {
     return <Navigate to={redirectTo ?? loginUrlFor(location.pathname + location.search)} replace />;

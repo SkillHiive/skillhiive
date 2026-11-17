@@ -143,9 +143,33 @@
   src: url(./assets/fonts/poppins/Poppins-Bold.ttf);
 }
 
-* {
-  cursor: default;
-  -webkit-fonts-smoothing: antialiased;
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native cursors: a pointer on things you can press, the text cursor in fields. */
+a[href],
+button:not(:disabled),
+[role="button"],
+[role="switch"],
+[role="menuitem"],
+[role="tab"],
+select,
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+/* One visible focus ring for keyboard users, everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+/* The landing page's custom cursor (Cursor.tsx) adds this class only for mouse users. */
+html.custom-cursor,
+html.custom-cursor * {
+  cursor: none;
 }
 
 .transition-ui {
@@ -160,19 +184,6 @@
   background-color: var(--color-tint-primary);
 }
 
-.nav-block {
-  @apply mx-1 rounded-2xl backdrop-blur-sm;
-  border-width: 0.5px;
-  border-style: solid;
-  background-color: rgba(255, 255, 255, 0.62);
-  border-color: rgba(15, 15, 18, 0.12);
-}
-
-.dark .nav-block {
-  background-color: rgba(12, 15, 20, 0.13);
-  border-color: var(--color-border-default);
-}
-
 html.light body {
   background-color: var(--color-bg-canvas);
 }
@@ -180,18 +191,21 @@ html.dark body {
   background-color: var(--color-bg-canvas);
 }
 
-.nav-link {
-  user-select: none;
-}
-
 body.focus-mode .nav {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-body.focus-mode .cursor-dot,
-body.focus-mode .cursor-glow {
-  z-index: 2000;
+
+/* Loading indicators wait 300ms before appearing, so quick loads show nothing. */
+@keyframes delayed-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+.delayed-fade {
+  opacity: 0;
+  animation: delayed-fade-in 200ms ease 300ms forwards;
 }
 
 :root {
@@ -209,8 +223,7 @@ body.focus-mode .cursor-glow {
 }
 
 /*
- * The site-wide `* { outline: 0 !important }` (Layout.css) hides every keyboard focus ring.
- * Pages that opt in with .focus-ring get a two-tone ring that shows on light and dark backgrounds.
+ * Pages that opt in with .focus-ring add a two-tone ring that shows on light and dark backgrounds.
  * --ring-inner and --ring-outer are set on the page from the theme tokens.
  */
 .focus-ring a:focus-visible,

@@ -1,22 +1,19 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { Laptop, Trash2 } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { formatDuration } from "@/lib/timeTracker";
-import { fetchMyProjects } from "@/lib/todayData";
 import {
   fetchCodingTimeComparison,
   fetchCodingTimeSource,
   fetchMyCueDevices,
-  fetchMyCueProjects,
-  mapCueProject,
   revokeCueDevice,
   setCodingTimeSource,
   summarizeComparison,
   type CodingTimeSource,
   type ComparisonDay,
   type CueDevice,
-  type CueProject,
   type CueResult,
 } from "@/lib/cue";
 
@@ -27,13 +24,11 @@ interface Props {
   onChanged?: () => void;
 }
 
-/** Linked Cue devices, published projects, and which source feeds the profile. */
+/** Linked Cue devices and which source feeds the profile. Projects live on the Home page. */
 export function CueCard({ hasTracker, onChanged }: Props) {
   const { colors, spacing, radii } = useTokens();
   const [loading, setLoading] = useState(true);
   const [devices, setDevices] = useState<CueDevice[]>([]);
-  const [projects, setProjects] = useState<CueProject[]>([]);
-  const [myProjects, setMyProjects] = useState<{ id: string; name: string }[]>([]);
   const [source, setSource] = useState<CodingTimeSource>("tracker");
   const [comparison, setComparison] = useState<ComparisonDay[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -45,17 +40,13 @@ export function CueCard({ hasTracker, onChanged }: Props) {
     let active = true;
     void Promise.all([
       fetchMyCueDevices(),
-      fetchMyCueProjects(),
       fetchCodingTimeSource(),
       fetchCodingTimeComparison(7),
-      fetchMyProjects(),
-    ]).then(([nextDevices, nextProjects, nextSource, nextComparison, mine]) => {
+    ]).then(([nextDevices, nextSource, nextComparison]) => {
       if (!active) return;
       setDevices(nextDevices);
-      setProjects(nextProjects);
       setSource(nextSource);
       setComparison(nextComparison);
-      setMyProjects(mine.map((project) => ({ id: project.id, name: project.name })));
       setLoading(false);
     });
     return () => {
@@ -154,55 +145,15 @@ export function CueCard({ hasTracker, onChanged }: Props) {
             </div>
           ))}
 
-          <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Published projects</Text>
-          {projects.length === 0 ? (
-            <Text variant="caption" tone="secondary">
-              None yet. All your time is counted as private work. Run <code>cue publish &lt;project&gt;</code> to
-              name a project on your profile.
-            </Text>
-          ) : (
-            projects.map((project) => (
-              <div key={project.device_id + project.project_key} style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <Text variant="bodySm" weight={700}>{project.name}</Text>
-                  <Text variant="caption" tone="tertiary">
-                    {formatDuration(project.total_seconds)}{project.remote ? ` · ${project.remote}` : ""}
-                  </Text>
-                </div>
-                <label>
-                  <span style={{ position: "absolute", left: -9999 }}>SkillHive project for {project.name}</span>
-                  <select
-                    value={project.today_project_id ?? ""}
-                    onChange={(event) =>
-                      void after(
-                        mapCueProject(project.device_id, project.project_key, event.target.value || null),
-                        event.target.value ? "Project linked." : "Project unlinked.",
-                      )
-                    }
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: radii.md,
-                      border: `1px solid ${colors.border.subtle}`,
-                      background: colors.bg.canvas,
-                      color: colors.text.primary,
-                      fontFamily: "inherit",
-                      fontSize: 13,
-                    }}
-                  >
-                    <option value="">Not shown on a project page</option>
-                    {myProjects.map((mine) => (
-                      <option key={mine.id} value={mine.id}>{mine.name}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ))
-          )}
+          <Text variant="caption" tone="secondary" style={{ marginTop: spacing.sm }}>
+            Your projects from Cue are on <Link to="/home">Today</Link>, under Projects. Only you see them
+            until you make one public. <code>cue projects</code> on your computer shows which ones it keeps to itself.
+          </Text>
 
           {hasTracker && (
             <>
-              <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Profile source</Text>
-              <div role="radiogroup" aria-label="Profile source" style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
+              <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Time shown on your profile</Text>
+              <div role="radiogroup" aria-label="Time shown on your profile" style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
                 {(["tracker", "cue"] as const).map((option) => (
                   <button
                     key={option}
@@ -225,8 +176,8 @@ export function CueCard({ hasTracker, onChanged }: Props) {
               <Text variant="caption" tone="secondary">
                 Last 7 days: Cue {formatDuration(summary.cueTotal)}, tracker {formatDuration(summary.trackerTotal)}.
                 {summary.comparableDays > 0
-                  ? ` Within 10% of each other on ${summary.closeDays} of ${summary.comparableDays} days both reported.`
-                  : " No day has time from both yet."}
+                  ? ` They agree within 10% on ${summary.closeDays} of the ${summary.comparableDays} days both counted.`
+                  : " They haven't both counted the same day yet, so there's nothing to compare."}
               </Text>
             </>
           )}

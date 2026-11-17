@@ -253,7 +253,7 @@ export function TrackerProjectPickerModal({
             </div>
           ) : filtered.length === 0 ? (
             <Text variant="bodySm" tone="tertiary">
-              No Hackatime projects found. Click “Sync now” in Settings → Trackers,
+              No Hackatime projects found. Click “Sync now” in Settings → Coding time,
               then come back.
             </Text>
           ) : (

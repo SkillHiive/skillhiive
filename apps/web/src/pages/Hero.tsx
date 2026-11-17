@@ -1,10 +1,19 @@
-// import HUD from "@/components/HUD";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import shVid from "@/assets/sh.mp4";
+import heroPoster from "@/assets/hero-poster.webp";
+
+/** The 10 MB background video plays only when nobody has asked for less motion or less data. */
+function shouldPlayVideo(): boolean {
+  if (typeof window === "undefined") return false;
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  return !reduceMotion && connection?.saveData !== true;
+}
 
 export default function Hero() {
   const [easterVisible, setEasterVisible] = useState(false);
+  const [playVideo] = useState(shouldPlayVideo);
 
   const ctaRef = useRef<HTMLButtonElement | null>(null);
   const navigate = useNavigate();
@@ -77,7 +86,17 @@ export default function Hero() {
       <div className="noise" aria-hidden="true" />
       <main>
         <section className="hero relative min-h-dvh">
-          <video className="absolute top-0 left-0 min-h-dvh object-cover opacity-100 flip scale-x-100" src={shVid} autoPlay muted loop playsInline />
+          <video
+            className="absolute top-0 left-0 min-h-dvh object-cover opacity-100 flip scale-x-100"
+            src={playVideo ? shVid : undefined}
+            poster={heroPoster}
+            autoPlay={playVideo}
+            preload={playVideo ? "auto" : "none"}
+            muted
+            loop
+            playsInline
+            aria-hidden="true"
+          />
           <div className="absolute inset-0 z-10 h-full pointer-events-none bg-[radial-gradient(circle,_transparent_20%,_rgba(0,0,0,0.85)_100%)]"></div>
 
 <div
@@ -127,9 +146,6 @@ export default function Hero() {
                 </span>
               </h1>
             </div>
-            {/* <div className="hero-cell" data-delay="400">
-              <HUD />
-            </div> */}
           </div>
 
           <div className="scroll-hint reveal-text" data-delay="900">
@@ -173,7 +189,7 @@ export default function Hero() {
           <p className="egg-greeting">You found us early.</p>
 
           <p className="egg-code">
-            Use code <strong>VOID</strong> for early access.
+            Thanks for being here this early. We build in the open.
           </p>
 
           <button className="egg-close" onClick={() => setEasterVisible(false)}>

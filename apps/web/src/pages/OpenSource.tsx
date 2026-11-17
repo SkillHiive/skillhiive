@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTokens } from "@/theme";
+import { fetchRecentCommits, type CommitLogEntry } from "@/lib/github";
 import { Text } from "@skillhiive/ui";
 import { BookMarked, GitFork } from "lucide-react";
 
@@ -11,6 +12,7 @@ interface RepoCardData {
   language: string;
   forks_count?: number;
   updated_at?: string;
+  pushed_at?: string | null;
   private?: boolean;
   isFallback?: boolean;
 }
@@ -20,15 +22,6 @@ interface OrgStats {
   stars: number;
   forks: number;
   openIssues: number;
-}
-
-interface CommitLogEntry {
-  hash: string;
-  repo: string;
-  kind: "feat" | "fix" | "perf" | "chore" | "docs";
-  scope?: string;
-  message: string;
-  date: string;
 }
 
 const ORG = "SkillHiive";
@@ -47,7 +40,7 @@ const FALLBACK_REPOS: RepoCardData[] = [
   {
     name: "mobile",
     description:
-      "React Native (Expo) for iOS/Android. Native-first companion with feature parity — quick capture, rooms, allies on the go.",
+      "React Native (Expo) for iOS and Android: quick capture, rooms and allies on the go.",
     language: "TypeScript",
     stargazers_count: 0,
     isFallback: true,
@@ -55,51 +48,10 @@ const FALLBACK_REPOS: RepoCardData[] = [
   {
     name: "backend",
     description:
-      "Node/Express + Supabase + LiveKit. Auth, realtime collaboration, token issuance, Wakatime/Hackatime sync cron, aggregate RPCs.",
+      "Node/Express + Supabase + LiveKit. Auth, realtime collaboration, room tokens, and the Cue sync endpoint.",
     language: "JavaScript",
     stargazers_count: 0,
     isFallback: true,
-  },
-];
-
-const COMMIT_LOG: CommitLogEntry[] = [
-  {
-    hash: "a3f9c1e",
-    repo: "org",
-    kind: "chore",
-    message: "opened SkillHiive to the open-source community",
-    date: "today",
-  },
-  {
-    hash: "d281bb4",
-    repo: "skillhiive-web",
-    kind: "docs",
-    message: "added community documentation and contribution guides",
-    date: "today",
-  },
-  {
-    hash: "9c04e7a",
-    repo: "skillhiive-mobile",
-    kind: "feat",
-    scope: "platform",
-    message: "completed feature parity with the web client",
-    date: "2d",
-  },
-  {
-    hash: "5b71f02",
-    repo: "skillhiive-backend",
-    kind: "feat",
-    scope: "realtime",
-    message: "secure LiveKit token issuance and session authentication",
-    date: "4d",
-  },
-  {
-    hash: "1e88a3d",
-    repo: "skillhiive-web",
-    kind: "feat",
-    scope: "beta",
-    message: "prepared public beta release",
-    date: "1w",
   },
 ];
 
@@ -107,7 +59,7 @@ const PHILOSOPHY = [
   {
     title: "Verify our claims",
     description:
-      "Your coding data stays yours. The open-source backend means you can audit exactly how Wakatime/Hackatime data is processed, stored, and exposed — no hidden telemetry.",
+      "Your coding data stays yours. Cue keeps project names on your computer until you share them, and the open code shows exactly what is stored and who can see it. No hidden telemetry.",
   },
   {
     title: "Self-host if you need to",
@@ -117,7 +69,7 @@ const PHILOSOPHY = [
   {
     title: "Contribute the features you need",
     description:
-      "Missing a tracker integration? Need a custom RPC? The schema and sync engine are open. Add it, open a PR, and it ships for everyone — including you.",
+      "Need something that isn't there yet? The schema and the Cue sync are open. Add it, open a PR, and it ships for everyone, including you.",
   },
 ];
 
@@ -207,6 +159,24 @@ function useOrgRepos(fallback: RepoCardData[]) {
   return { repos, stats, isLive };
 }
 
+/** Recent commits across the live repositories; stays empty until GitHub answers. */
+function useRecentCommits(repos: RepoCardData[], isLive: boolean) {
+  const [commits, setCommits] = useState<CommitLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!isLive) return;
+    let cancelled = false;
+    void fetchRecentCommits(ORG, repos).then((list) => {
+      if (!cancelled) setCommits(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repos, isLive]);
+
+  return commits;
+}
+
 function GithubMark({ size = 16, color }: { size?: number; color: string }) {
   return (
     <svg
@@ -279,8 +249,9 @@ function formatRelativeTime(dateStr: string) {
 export function OpenSource() {
   const { colors, spacing, radii, typography } = useTokens();
   const { repos, stats, isLive } = useOrgRepos(FALLBACK_REPOS);
+  const commits = useRecentCommits(repos, isLive);
 
-  const commitKindColor: Record<CommitLogEntry["kind"], string> = {
+  const commitKindColor: Record<string, string> = {
     feat: colors.tint.success,
     perf: colors.tint.success,
     fix: colors.tint.warning,
@@ -432,7 +403,8 @@ export function OpenSource() {
             </div>
           </div>
 
-          {/* Signature: cross-repo activity log */}
+          {/* Signature: cross-repo activity log, straight from GitHub; hidden if GitHub can't be reached */}
+          {commits.length > 0 && (
           <div className="flex justify-center">
             <div
               className="transition-ui "
@@ -499,7 +471,7 @@ export function OpenSource() {
                   gap: spacing.sm,
                 }}
               >
-                {COMMIT_LOG.map((entry) => (
+                {commits.map((entry) => (
                   <div
                     key={entry.hash}
                     style={{
@@ -530,7 +502,7 @@ export function OpenSource() {
                       >
                         {entry.repo}
                       </span>
-                      <span style={{ color: commitKindColor[entry.kind] }}>
+                      <span style={{ color: commitKindColor[entry.kind] ?? colors.text.tertiary }}>
                         {entry.kind}
                         {entry.scope ? `(${entry.scope})` : ""}:
                       </span>
@@ -551,6 +523,7 @@ export function OpenSource() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Repositories */}

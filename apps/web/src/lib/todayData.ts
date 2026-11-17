@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { withTimeout } from "./load";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,8 @@ export interface Project {
 export interface ProjectWithStats extends Project {
   total_minutes: number;
   total_sessions: number;
+  /** Whether people other than the owner can see it. Absent before 20261117000200, when every project was public. */
+  is_public?: boolean;
 }
 
 export interface HeatmapDay {
@@ -331,18 +334,19 @@ export interface PublicProfile {
   bio: string | null;
 }
 
+/**
+ * A profile by username: null when nobody has that username. Throws when the server
+ * can't be reached or errors, so the page can say "couldn't load" instead of "not found".
+ */
 export async function fetchPublicProfile(
   username: string,
 ): Promise<PublicProfile | null> {
-  try {
-    const { data, error } = await supabase.rpc("get_public_profile", {
-      p_username: username,
-    });
-    if (error || !data || !Array.isArray(data) || data.length === 0) return null;
-    return data[0] as PublicProfile;
-  } catch {
-    return null;
-  }
+  const { data, error } = await withTimeout(
+    supabase.rpc("get_public_profile", { p_username: username }),
+  );
+  if (error) throw error;
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+  return data[0] as PublicProfile;
 }
 
 export async function fetchProjectShipped(

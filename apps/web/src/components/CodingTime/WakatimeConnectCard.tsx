@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link2, Lock, Unlock } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
@@ -11,7 +11,6 @@ import {
 import {
   fetchProjectMappings,
   formatDuration,
-  setProjectCodingVisibility,
   type ProjectMapping,
 } from "@/lib/timeTracker";
 import { CodingTimeBadge, LanguageBreakdown } from "./parts";
@@ -21,7 +20,7 @@ import { TrackerProjectPickerModal } from "./TrackerProjectPickerModal";
  * Per-project "connect your time tracker" card (Hack Club style).
  *
  * Owner view: empty state → connect CTA; mapped state → live badge,
- * language breakdown, manage-link + public/private toggle.
+ * language breakdown and manage-link. Visibility is ProjectCueSources' one switch.
  * Visitors render nothing here — Project.tsx shows the badge itself.
  */
 export function WakatimeConnectCard({
@@ -39,7 +38,6 @@ export function WakatimeConnectCard({
 
   const [mappings, setMappings] = useState<ProjectMapping[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const loadMappings = useCallback(() => {
     void fetchProjectMappings(projectId).then(setMappings);
@@ -55,14 +53,6 @@ export function WakatimeConnectCard({
     (acc, m) => acc + (m.total_seconds ?? 0),
     0,
   );
-
-  async function togglePublic() {
-    if (!coding) return;
-    setBusy(true);
-    await setProjectCodingVisibility(projectId, !coding.is_public);
-    setBusy(false);
-    refresh();
-  }
 
   return (
     <div
@@ -124,7 +114,7 @@ export function WakatimeConnectCard({
             No tracker connected
           </Text>
           <Text variant="bodySm" tone="secondary">
-            Connect Wakatime or Hackatime in Settings → Trackers. Your coding time will be
+            Connect Wakatime or Hackatime in Settings → Coding time. Your coding time will be
             auto-fetched — no manual entry needed.
           </Text>
           <button
@@ -142,7 +132,7 @@ export function WakatimeConnectCard({
               cursor: "pointer",
             }}
           >
-            Open Settings → Trackers
+            Open Settings → Coding time
           </button>
         </div>
       ) : mappings.length === 0 ? (
@@ -193,38 +183,9 @@ export function WakatimeConnectCard({
             <LanguageBreakdown breakdown={coding.language_breakdown} maxItems={5} />
           )}
 
-          {/* Privacy toggle */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: spacing.sm,
-              paddingTop: spacing.xs,
-            }}
-          >
-            <button
-              onClick={togglePublic}
-              disabled={busy}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: "transparent",
-                border: "none",
-                cursor: busy ? "wait" : "pointer",
-                color: coding?.is_public ? colors.tint.success : colors.text.tertiary,
-                fontSize: 12,
-                fontWeight: 700,
-                fontFamily: "inherit",
-                padding: 0,
-              }}
-            >
-              {coding?.is_public ? <Unlock size={13} /> : <Lock size={13} />}
-              {coding?.is_public
-                ? "Visible on your public profile"
-                : "Private — only you can see this"}
-            </button>
-          </div>
+          <Text variant="caption" tone="tertiary">
+            Who can see this is set at the top of the page.
+          </Text>
         </>
       )}
 

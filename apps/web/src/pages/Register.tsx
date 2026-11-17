@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { useTokens } from "@/theme";
 import { Text } from "@skillhiive/ui";
-import peace from "@/assets/vid.mp4"
+import still from "@/assets/register-still.webp";
 
 type FieldId = "displayName" | "username" | "email" | "password" | "confirm";
 
@@ -92,6 +92,7 @@ interface FieldProps {
 
 function Field({
   id,
+  label,
   tag,
   type = "text",
   placeholder,
@@ -120,7 +121,7 @@ function Field({
           : colors.border.subtle;
 
   const labelColor =
-    error && touched ? colors.tint.danger : focused ? colors.text.secondary : colors.text.tertiary;
+    error && touched ? colors.tint.danger : focused ? colors.text.primary : colors.text.secondary;
 
   const autoComplete =
     id === "password" || id === "confirm"
@@ -136,15 +137,15 @@ function Field({
       <label
         htmlFor={id}
         style={{
-          fontSize: 9,
-          letterSpacing: 1.8,
-          marginBottom: 5,
+          fontSize: 12,
+          letterSpacing: 0.3,
+          marginBottom: 6,
           display: "block",
-          fontFamily: monoFont,
+          fontWeight: 600,
           color: labelColor,
         }}
       >
-        
+        {label}
       </label>
 
       <div
@@ -178,19 +179,16 @@ function Field({
             border: "none",
             outline: "none",
             color: colors.text.primary,
-            fontFamily: monoFont,
-            fontSize: 11,
-            letterSpacing: 0.4,
+            fontSize: 14,
             height: "100%",
           }}
         />
         {tag && (
           <span
             style={{
-              fontSize: 7,
-              letterSpacing: 1,
-              color: colors.text.tertiary,
-              opacity: 0.6,
+              fontSize: 11,
+              letterSpacing: 0.5,
+              color: colors.text.secondary,
               flexShrink: 0,
               marginLeft: 6,
               fontFamily: monoFont,
@@ -481,7 +479,7 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
       }}
       className="skillhive-signup-grid relative"
     >
-      <video src={peace} className="absolute top-0 -scale-x-100 left-0 object-cover min-h-dvh -z-1" playsInline muted autoPlay loop></video>
+      <img src={still} alt="" aria-hidden="true" className="absolute inset-0 -z-1 size-full object-cover" />
       <style>{`
         @keyframes skillhive-spin { to { transform: rotate(360deg); } }
         @media (max-width: 900px) {
@@ -567,8 +565,8 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
 
             }}
           >
-            An account here is a seat in the room. No leaderboards, no
-            streaks, just the people you're already building alongside.
+            Your coding time, your focus sessions, and the few people you
+            build alongside. No leaderboards, no algorithm.
           </Text>
         </div>
 

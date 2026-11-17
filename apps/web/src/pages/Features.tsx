@@ -42,7 +42,7 @@ const pillars = [
   {
     index: "01",
     label: "Verified Coding Time",
-    line: "Connect Wakatime or Hackatime. Your hours, languages, and streaks auto-sync to your profile and projects — opt-in, never manual.",
+    line: "Cue runs on your computer and counts your coding time, including work with coding agents. Daily totals reach your profile on their own; project names stay private until you share them.",
     icon: PresenceIcon,
   },
   {

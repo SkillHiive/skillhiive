@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchAllyIds } from "@/lib/allies";
+import { loadErrorMessage, withTimeout } from "@/lib/load";
+import { ErrorState } from "@/components/ui/ErrorState";
 import {
   Briefcase,
-  FileText,
   Camera,
   Plus,
   X,
   ChevronDown,
+  ArrowUp,
 } from "lucide-react";
 import SwipeLayout from "@/components/SwipeLayout";
 import { Avatar, Text } from "@skillhiive/ui";
@@ -18,11 +22,11 @@ import { errorMessage } from "@/lib/errors";
 
 type PostType = "project" | "offer" | "media";
 type RawPost = PostModel & { post_type: PostType };
+/** What the composer can make. Older "offer" posts still display, but new ones can't be written. */
+type ComposeType = "project" | "media";
 
 
 const PAGE_SIZE = 10;
-const REFRESH_INTERVAL = 5 * 60 * 1000;
-const POLL_INTERVAL = 30 * 1000;
 
 const FEED_QUERY = `
   id,
@@ -58,13 +62,12 @@ const FEED_QUERY = `
 `;
 
 const POST_TYPES: {
-  value: PostType;
+  value: ComposeType;
   label: string;
   Icon: React.FC<{ size: number }>;
 }[] = [
   { value: "project", label: "Project", Icon: Briefcase },
   { value: "media", label: "Media", Icon: Camera },
-  { value: "offer", label: "Offer", Icon: FileText },
 ];
 
 function todayLabel(): string {
@@ -111,15 +114,6 @@ function Chip({
 }
 
 
-type OfferType = "full_time" | "part_time" | "internship" | "contract";
-
-const OFFER_TYPE_OPTIONS: { value: OfferType; label: string }[] = [
-  { value: "full_time", label: "Full-Time" },
-  { value: "part_time", label: "Part-Time" },
-  { value: "internship", label: "Internship" },
-  { value: "contract", label: "Contract" },
-];
-
 async function uploadPostImage(file: File): Promise<string> {
   const fileName = `${Date.now()}.jpg`;
   const { error: uploadError } = await supabase.storage
@@ -136,7 +130,7 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<PostType>("project");
+  const [type, setType] = useState<ComposeType>("project");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,19 +143,12 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
   );
   const [endedAt, setEndedAt] = useState<string>("");
 
-  const [company, setCompany] = useState("");
-  const [role, setRole] = useState("");
-  const [salaryRange, setSalaryRange] = useState("");
-  const [location, setLocation] = useState("");
-  const [offerType, setOfferType] = useState<OfferType>("full_time");
-
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const canPost =
     caption.trim().length > 0 &&
-    (type !== "project" || title.trim().length > 0) &&
-    (type !== "offer" || (company.trim().length > 0 && role.trim().length > 0));
+    (type !== "project" || title.trim().length > 0);
 
   function reset() {
     setCaption("");
@@ -170,11 +157,6 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
     setCurrentlyWorking(true);
     setStartedAt(new Date().toISOString().slice(0, 10));
     setEndedAt("");
-    setCompany("");
-    setRole("");
-    setSalaryRange("");
-    setLocation("");
-    setOfferType("full_time");
     setImageFile(null);
     setImagePreview(null);
     setError(null);
@@ -194,15 +176,12 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
     setError(null);
     try {
       setPosting(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
+      if (!profile?.id) throw new Error("You're signed out. Sign in again to post.");
 
       const { data: created, error: postErr } = await supabase
         .from("posts")
         .insert({
-          user_id: user.id,
+          user_id: profile.id,
           post_type: type,
           caption: caption.trim() || null,
         })
@@ -219,18 +198,6 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
           started_at: startedAt || null,
           ended_at: currentlyWorking || !endedAt ? null : endedAt,
           status: currentlyWorking ? "active" : "completed",
-        });
-        if (e) throw e;
-      }
-
-      if (type === "offer") {
-        const { error: e } = await supabase.from("offer_posts").insert({
-          post_id: postId,
-          company: company.trim() || null,
-          role: role.trim() || null,
-          salary_range: salaryRange.trim() || null,
-          location: location.trim() || null,
-          offer_type: offerType,
         });
         if (e) throw e;
       }
@@ -485,55 +452,6 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
         </div>
       )}
 
-      {/* OFFER FIELDS */}
-      {type === "offer" && (
-        <div
-          style={{ display: "flex", flexDirection: "column", gap: spacing.md }}
-        >
-          <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
-            {OFFER_TYPE_OPTIONS.map((ot) => (
-              <Chip
-                key={ot.value}
-                active={offerType === ot.value}
-                onClick={() => setOfferType(ot.value)}
-              >
-                {ot.label}
-              </Chip>
-            ))}
-          </div>
-          <input
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            placeholder="Company *"
-            maxLength={80}
-            style={field}
-          />
-          <input
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            placeholder="Role / Position *"
-            maxLength={80}
-            style={field}
-          />
-          <div style={{ display: "flex", gap: spacing.sm }}>
-            <input
-              value={salaryRange}
-              onChange={(e) => setSalaryRange(e.target.value)}
-              placeholder="Salary range"
-              maxLength={40}
-              style={field}
-            />
-            <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Location"
-              maxLength={60}
-              style={field}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Cover image */}
       <div>
         <input
@@ -671,121 +589,144 @@ function ComposeBar({ onPosted }: { onPosted: () => void }) {
 }
 
 
-export default function Feed() {
-  const { profile } = useProfile();
-  const { colors, spacing } = useTokens();
+/** How often to look for new posts while the tab is visible. Nothing on screen moves until you ask. */
+const NEW_POSTS_CHECK_MS = 60_000;
 
+export default function Feed() {
+  const session = useAuth();
+  const { colors, spacing } = useTokens();
+  const myId = session?.user.id ?? null;
+
+  const [authors, setAuthors] = useState<string[] | null>(null);
   const [posts, setPosts] = useState<RawPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "projects" | "offers">("all");
+  const [filter, setFilter] = useState<"all" | "projects">("all");
+  const [newCount, setNewCount] = useState(0);
 
   const isFetchingMore = useRef(false);
-  const lastFetchedRef = useRef<number>(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchFeed = useCallback(
-    async (isRefresh = false) => {
-      if (!isRefresh) setLoading(true);
-      setError(null);
-
+  // The feed is you and your allies only: no strangers, no algorithm.
+  const feedQuery = useCallback(
+    (who: string[]) => {
       let query = supabase
         .from("posts")
         .select(FEED_QUERY)
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE);
-
+        .in("user_id", who)
+        .order("created_at", { ascending: false });
       if (filter === "projects") query = query.eq("post_type", "project");
-      if (filter === "offers") query = query.eq("post_type", "offer");
-
-      const { data, error: fetchErr } = await query.returns<RawPost[]>();
-
-      if (fetchErr) {
-        setError("Couldn't load posts. Try refreshing.");
-        setLoading(false);
-        return;
-      }
-
-      const rows = data ?? [];
-      lastFetchedRef.current = Date.now();
-      setPosts(rows);
-      setHasMore(rows.length === PAGE_SIZE);
-      setCursor(rows.at(-1)?.created_at ?? null);
-      setLoading(false);
+      return query;
     },
     [filter],
   );
 
-  const fetchFeedRef = useRef(fetchFeed);
+  const fetchFirstPage = useCallback(async (): Promise<{ who: string[]; rows: RawPost[] }> => {
+    if (!myId) throw new Error("You're signed out.");
+    const allies = await fetchAllyIds(myId);
+    const who = [myId, ...allies];
+    const { data, error: fetchErr } = await withTimeout(
+      feedQuery(who).limit(PAGE_SIZE).returns<RawPost[]>(),
+    );
+    if (fetchErr) throw fetchErr;
+    return { who, rows: data ?? [] };
+  }, [myId, feedQuery]);
+
+  const applyFirstPage = useCallback(({ who, rows }: { who: string[]; rows: RawPost[] }) => {
+    setAuthors(who);
+    setPosts(rows);
+    setHasMore(rows.length === PAGE_SIZE);
+    setCursor(rows.at(-1)?.created_at ?? null);
+    setNewCount(0);
+    setError(null);
+    setLoading(false);
+  }, []);
+
+  const applyFirstPageError = useCallback((e: unknown) => {
+    setError(loadErrorMessage(e, "your feed"));
+    setLoading(false);
+  }, []);
+
+  const loadFirstPage = useCallback(
+    () => fetchFirstPage().then(applyFirstPage, applyFirstPageError),
+    [fetchFirstPage, applyFirstPage, applyFirstPageError],
+  );
+
   useEffect(() => {
-    fetchFeedRef.current = fetchFeed;
-  }, [fetchFeed]);
+    if (!myId) return;
+    let cancelled = false;
+    fetchFirstPage().then(
+      (page) => !cancelled && applyFirstPage(page),
+      (e) => !cancelled && applyFirstPageError(e),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [myId, fetchFirstPage, applyFirstPage, applyFirstPageError]);
 
   const fetchMore = useCallback(async () => {
-    if (isFetchingMore.current || !hasMore || !cursor) return;
+    if (!authors || isFetchingMore.current || !hasMore || !cursor) return;
     isFetchingMore.current = true;
     setLoadingMore(true);
-
-    let query = supabase
-      .from("posts")
-      .select(FEED_QUERY)
-      .order("created_at", { ascending: false })
-      .lt("created_at", cursor)
-      .limit(PAGE_SIZE);
-
-    if (filter === "projects") query = query.eq("post_type", "project");
-    if (filter === "offers") query = query.eq("post_type", "offer");
-
-    const { data, error: fetchErr } = await query.returns<RawPost[]>();
-
-    if (!fetchErr && data) {
+    try {
+      const { data, error: fetchErr } = await withTimeout(
+        feedQuery(authors).lt("created_at", cursor).limit(PAGE_SIZE).returns<RawPost[]>(),
+      );
+      if (fetchErr) throw fetchErr;
       const rows = data ?? [];
       setPosts((prev) => [...prev, ...rows]);
       setHasMore(rows.length === PAGE_SIZE);
       setCursor(rows.at(-1)?.created_at ?? cursor);
+    } catch {
+      // Keep what is already on screen; "Load more" stays, so they can try again.
+    } finally {
+      setLoadingMore(false);
+      isFetchingMore.current = false;
     }
+  }, [authors, cursor, hasMore, feedQuery]);
 
-    setLoadingMore(false);
-    isFetchingMore.current = false;
-  }, [cursor, hasMore, filter]);
-
+  // Count newer posts in the background and offer them, instead of replacing the list.
+  const newest = posts[0]?.created_at ?? null;
   useEffect(() => {
-    fetchFeed();
-  }, [fetchFeed]);
-
-  useEffect(() => {
-    pollRef.current = setInterval(() => {
-      fetchFeedRef.current(true);
-    }, POLL_INTERVAL);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      fetchFeedRef.current(true);
-    }, REFRESH_INTERVAL);
-
-    function handleVisibility() {
-      if (document.visibilityState === "visible") {
-        const elapsed = Date.now() - lastFetchedRef.current;
-        if (elapsed >= REFRESH_INTERVAL) fetchFeedRef.current(true);
-      }
+    if (!authors) return;
+    const who = authors;
+    let cancelled = false;
+    async function check() {
+      if (document.visibilityState !== "visible") return;
+      let query = supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .in("user_id", who);
+      if (newest) query = query.gt("created_at", newest);
+      if (filter === "projects") query = query.eq("post_type", "project");
+      const { count } = await query;
+      if (!cancelled && typeof count === "number") setNewCount(count);
     }
-
-    document.addEventListener("visibilitychange", handleVisibility);
+    const timer = setInterval(() => void check(), NEW_POSTS_CHECK_MS);
+    const onVisible = () => void check();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [authors, newest, filter]);
 
-  const myId = profile?.id ?? null;
+  async function showNewPosts() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    await loadFirstPage();
+  }
+
+  async function retry() {
+    setRetrying(true);
+    await loadFirstPage();
+    setRetrying(false);
+  }
+
+  const allyCount = authors ? authors.length - 1 : null;
 
   const divider = (label: React.ReactNode) => (
     <div
@@ -839,9 +780,11 @@ export default function Feed() {
             >
               {todayLabel()}
             </Text>
-            {!loading && (
-              <Text variant="caption" tone="tertiary">
-                {posts.length} dispatches
+            {allyCount !== null && (
+              <Text variant="caption" tone="secondary">
+                {allyCount === 0
+                  ? "Only you so far"
+                  : `You and ${allyCount} ${allyCount === 1 ? "ally" : "allies"}`}
               </Text>
             )}
           </div>
@@ -854,14 +797,35 @@ export default function Feed() {
               marginBottom: spacing.lg,
             }}
           >
-            {(["all", "projects", "offers"] as const).map((f) => (
-              <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+            {(["all", "projects"] as const).map((f) => (
+              <Chip
+                key={f}
+                active={filter === f}
+                onClick={() => {
+                  if (f === filter) return;
+                  setLoading(true);
+                  setFilter(f);
+                }}
+              >
+                {f === "all" ? "All" : "Projects"}
               </Chip>
             ))}
           </div>
 
-          <ComposeBar onPosted={() => fetchFeed(true)} />
+          <ComposeBar onPosted={() => void loadFirstPage()} />
+
+          {newCount > 0 && (
+            <div className="sticky top-20 z-10 flex justify-center pb-2">
+              <button
+                type="button"
+                onClick={() => void showNewPosts()}
+                className="inline-flex h-9 items-center gap-2 rounded-full bg-[var(--color-text-primary)] px-4 text-sm font-semibold text-[var(--color-bg-canvas)] shadow-lg"
+              >
+                <ArrowUp size={14} aria-hidden="true" />
+                {newCount} new {newCount === 1 ? "post" : "posts"}
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div
@@ -874,20 +838,18 @@ export default function Feed() {
               <Spinner />
             </div>
           ) : error ? (
-            <Text
-              align="center"
-              tone="tertiary"
-              style={{ display: "block", padding: "64px 0" }}
-            >
-              {error}
-            </Text>
+            <div style={{ padding: "32px 0" }}>
+              <ErrorState message={error} onRetry={() => void retry()} retrying={retrying} />
+            </div>
           ) : posts.length === 0 ? (
             <Text
               align="center"
-              tone="tertiary"
-              style={{ display: "block", padding: "64px 0" }}
+              tone="secondary"
+              style={{ display: "block", padding: "64px 0", maxWidth: 420, margin: "0 auto" }}
             >
-              No posts yet. Be the first to share something.
+              {allyCount === 0
+                ? "Your feed shows what you and your allies share. Ally someone from their profile and their work appears here."
+                : "Nothing shared yet. When you or your allies post, it shows up here."}
             </Text>
           ) : (
             <div>
@@ -911,7 +873,8 @@ export default function Feed() {
                 hasMore &&
                 divider(
                   <button
-                    onClick={fetchMore}
+                    type="button"
+                    onClick={() => void fetchMore()}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -919,22 +882,22 @@ export default function Feed() {
                       background: "transparent",
                       border: "none",
                       cursor: "pointer",
-                      color: colors.text.tertiary,
+                      color: colors.text.secondary,
                       fontSize: 12,
                       fontWeight: 600,
                       fontFamily: "inherit",
                     }}
                   >
                     <ChevronDown size={14} />
-                    load more posts
+                    Load more posts
                   </button>,
                 )}
 
               {!hasMore &&
                 posts.length > 0 &&
                 divider(
-                  <Text variant="caption" tone="tertiary" weight={500}>
-                    you're all caught up
+                  <Text variant="caption" tone="secondary" weight={500}>
+                    You're all caught up
                   </Text>,
                 )}
             </div>

@@ -13,6 +13,9 @@ import {
 } from "@/hooks/sessionPhase";
 import { useActiveRooms } from "@/hooks/useActiveRooms";
 import { Plus } from "lucide-react";
+import { ErrorState } from "@/components/ui/ErrorState";
+
+const SUGGESTED_ROOM_NAME = "Deep work";
 
 function NewRoomModal({
   open,
@@ -29,8 +32,9 @@ function NewRoomModal({
 
   useEffect(() => {
     if (open) {
-      setValue("");
-      setTimeout(() => inputRef.current?.focus(), 60);
+      // Start with a name that works as-is; typing replaces it.
+      setValue(SUGGESTED_ROOM_NAME);
+      setTimeout(() => inputRef.current?.select(), 60);
     }
   }, [open]);
 
@@ -100,6 +104,7 @@ function NewRoomModal({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKey}
+              aria-label="Room name"
               placeholder="e.g. deep work, thesis grind…"
               style={{
                 width: "100%",
@@ -165,7 +170,7 @@ function Spinner() {
 export default function Rooms() {
   const router = useNavigate();
   const { colors, spacing } = useTokens();
-  const { rooms, loading } = useActiveRooms();
+  const { rooms, loading, error, retrying, retry } = useActiveRooms();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleOpenSheet = useCallback(() => setSheetOpen(true), []);
@@ -251,8 +256,12 @@ export default function Rooms() {
           </div>
         )}
 
+        {!loading && error && (
+          <ErrorState message={error} onRetry={() => void retry()} retrying={retrying} />
+        )}
+
         {/* Empty state */}
-        {!loading && rooms.length === 0 && (
+        {!loading && !error && rooms.length === 0 && (
           <WorkRoomCard
             state="empty"
             name="No rooms yet"

@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { loadErrorMessage, withTimeout } from "@/lib/load";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface RoomParticipant {
   user_id: string;
@@ -18,47 +20,70 @@ export interface ActiveRoom {
 
 const POLL_INTERVAL = 8000;
 
+async function loadRooms(): Promise<ActiveRoom[]> {
+  const { data, error } = await withTimeout(
+    supabase.from("active_rooms").select("*").order("started_at", { ascending: true }),
+  );
+  if (error) throw error;
+  return (data ?? []) as ActiveRoom[];
+}
+
 export function useActiveRooms() {
+  const session = useAuth();
   const [rooms, setRooms] = useState<ActiveRoom[]>([]);
   const [loading, setLoading] = useState(true);
-  const mounted = useRef(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const loadedOnce = useRef(false);
 
-  async function fetchRooms() {
-    const { data, error } = await supabase
-      .from("active_rooms")
-      .select("*")
-      .order("started_at", { ascending: true });
-
-    if (!mounted.current) return;
-    if (!error && data) setRooms(data as ActiveRoom[]);
+  const applyRooms = useCallback((list: ActiveRoom[]) => {
+    setRooms(list);
+    setError(null);
     setLoading(false);
-  }
-
-  useEffect(() => {
-    mounted.current = true;
-    let poll: ReturnType<typeof setInterval> | null = null;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted.current) return;
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-      fetchRooms();
-      poll = setInterval(fetchRooms, POLL_INTERVAL);
-    });
-
-    function onVisible() {
-      if (document.visibilityState === "visible") fetchRooms();
-    }
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      mounted.current = false;
-      if (poll) clearInterval(poll);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    loadedOnce.current = true;
   }, []);
 
-  return { rooms, loading, refetch: fetchRooms };
+  const applyError = useCallback((e: unknown) => {
+    // A failed background refresh keeps the list it already has.
+    if (!loadedOnce.current) setError(loadErrorMessage(e, "the rooms"));
+    setLoading(false);
+  }, []);
+
+  const retry = useCallback(() => {
+    setRetrying(true);
+    return loadRooms()
+      .then(applyRooms, applyError)
+      .finally(() => setRetrying(false));
+  }, [applyRooms, applyError]);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      loadRooms().then(
+        (list) => !cancelled && applyRooms(list),
+        (e) => !cancelled && applyError(e),
+      );
+    };
+
+    refresh();
+    const poll = setInterval(refresh, POLL_INTERVAL);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [session, applyRooms, applyError]);
+
+  // Signed out there is nothing to load, so it isn't "loading" either.
+  return {
+    rooms,
+    loading: session === null ? false : loading,
+    error,
+    retrying,
+    retry,
+  };
 }
