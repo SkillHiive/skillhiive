@@ -146,14 +146,14 @@ export function CueCard({ hasTracker, onChanged }: Props) {
           ))}
 
           <Text variant="caption" tone="secondary" style={{ marginTop: spacing.sm }}>
-            Your projects from Cue are on your <Link to="/home">Home page</Link>, under Projects. Only you see them
+            Your projects from Cue are on <Link to="/home">Today</Link>, under Projects. Only you see them
             until you make one public. <code>cue projects</code> on your computer shows which ones it keeps to itself.
           </Text>
 
           {hasTracker && (
             <>
-              <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Profile source</Text>
-              <div role="radiogroup" aria-label="Profile source" style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
+              <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Time shown on your profile</Text>
+              <div role="radiogroup" aria-label="Time shown on your profile" style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
                 {(["tracker", "cue"] as const).map((option) => (
                   <button
                     key={option}
@@ -176,8 +176,8 @@ export function CueCard({ hasTracker, onChanged }: Props) {
               <Text variant="caption" tone="secondary">
                 Last 7 days: Cue {formatDuration(summary.cueTotal)}, tracker {formatDuration(summary.trackerTotal)}.
                 {summary.comparableDays > 0
-                  ? ` Within 10% of each other on ${summary.closeDays} of ${summary.comparableDays} days both reported.`
-                  : " No day has time from both yet."}
+                  ? ` They agree within 10% on ${summary.closeDays} of the ${summary.comparableDays} days both counted.`
+                  : " They haven't both counted the same day yet, so there's nothing to compare."}
               </Text>
             </>
           )}

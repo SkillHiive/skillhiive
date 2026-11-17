@@ -5,10 +5,6 @@
   transition: filter 300ms;
 }
 
-* {
-  outline: 0 !important;
-  cursor: none;
-}
 
 
 .font-primary {
@@ -173,9 +169,10 @@
   --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
 }
 
-html {
-  cursor: none;
-  scroll-behavior: smooth;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -427,13 +424,13 @@ footer {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  cursor: none;
+  cursor: pointer;
 }
 
 .logo-mark {
   font-size: 1rem;
   color: var(--ember);
-  cursor: none;
+  cursor: pointer;
   display: inline-block;
   transition:
     transform 0.3s var(--ease-out),
@@ -685,7 +682,7 @@ footer {
   font-size: 0.75rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  cursor: none;
+  cursor: pointer;
   border-radius: 12px;
   transition:
     background 0.3s ease,
@@ -694,10 +691,10 @@ footer {
     color 0.5s ease;
   overflow: hidden;
   will-change: transform;
-  cursor: none;
+  cursor: pointer;
 }
 .cta-btn * {
-  cursor: none;
+  cursor: pointer;
 }
 
 .cta-btn::before {
@@ -803,7 +800,7 @@ footer {
   border-bottom: 1px solid var(--ink-faint);
   position: relative;
   overflow: hidden;
-  cursor: none;
+  cursor: pointer;
   transition: 2s all var(--ease-in-out);
 }
 
@@ -977,7 +974,7 @@ footer {
   font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  cursor: none;
+  cursor: pointer;
   transition: color 0.3s ease;
   padding: 0.5rem;
 }

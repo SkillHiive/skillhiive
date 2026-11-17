@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { Check, Heart, MessageCircle, Share2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTokens } from "@/theme";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ActionRow({
   postId,
@@ -17,6 +18,8 @@ export default function ActionRow({
   noborder?: boolean;
 }) {
   const { colors, spacing } = useTokens();
+  // The session is read once for the whole app; asking the auth server per card was slow.
+  const userId = useAuth()?.user.id ?? null;
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(likes);
   const [loading, setLoading] = useState(false);
@@ -27,23 +30,20 @@ export default function ActionRow({
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+      if (!userId) return;
       const { data } = await supabase
         .from("likes")
         .select("id")
         .eq("post_id", postId)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
       if (!cancelled) setLiked(!!data);
     }
-    check();
+    void check();
     return () => {
       cancelled = true;
     };
-  }, [postId]);
+  }, [postId, userId]);
 
   useEffect(() => {
     return () => {
@@ -55,14 +55,8 @@ export default function ActionRow({
     async (e?: React.MouseEvent) => {
       e?.stopPropagation();
       if (loading) return;
+      if (!userId) return;
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
 
       if (liked) {
         setLiked(false);
@@ -71,7 +65,7 @@ export default function ActionRow({
           .from("likes")
           .delete()
           .eq("post_id", postId)
-          .eq("user_id", user.id);
+          .eq("user_id", userId);
         if (error) {
           setLiked(true);
           setLikeCount((c) => c + 1);
@@ -81,7 +75,7 @@ export default function ActionRow({
         setLikeCount((c) => c + 1);
         const { error } = await supabase
           .from("likes")
-          .insert({ post_id: postId, user_id: user.id });
+          .insert({ post_id: postId, user_id: userId });
         if (error) {
           setLiked(false);
           setLikeCount((c) => Math.max(c - 1, 0));
@@ -89,7 +83,7 @@ export default function ActionRow({
       }
       setLoading(false);
     },
-    [liked, loading, postId],
+    [liked, loading, postId, userId],
   );
 
   const handleShare = useCallback(

@@ -131,6 +131,7 @@ function AuthorRow({
           e.stopPropagation();
           if (!authorId) return;
           if (authorId === myId) navigate("/profile");
+          else if (post.profiles?.username) navigate(`/p/${encodeURIComponent(post.profiles.username)}`);
           else navigate(`/profile/${authorId}`);
         }}
         style={{

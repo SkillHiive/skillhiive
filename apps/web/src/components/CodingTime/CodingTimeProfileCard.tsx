@@ -103,11 +103,11 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
             </span>
           </div>
           <Text variant="bodySm" tone="tertiary">
-            Connect Wakatime or Hackatime in Settings → Trackers. Your coding time is
+            Connect Wakatime or Hackatime in Settings → Coding time. Your coding time is
             auto-fetched from the tracker — no manual entry needed.
           </Text>
           <Text variant="caption" tone="tertiary" style={{ display: "block", marginTop: spacing.xs }}>
-            Your data is private by default. Toggle visibility in Settings → Trackers.
+            Your data is private by default. Toggle visibility in Settings → Coding time.
           </Text>
         </div>
       );

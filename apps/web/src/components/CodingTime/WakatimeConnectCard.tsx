@@ -114,7 +114,7 @@ export function WakatimeConnectCard({
             No tracker connected
           </Text>
           <Text variant="bodySm" tone="secondary">
-            Connect Wakatime or Hackatime in Settings → Trackers. Your coding time will be
+            Connect Wakatime or Hackatime in Settings → Coding time. Your coding time will be
             auto-fetched — no manual entry needed.
           </Text>
           <button
@@ -132,7 +132,7 @@ export function WakatimeConnectCard({
               cursor: "pointer",
             }}
           >
-            Open Settings → Trackers
+            Open Settings → Coding time
           </button>
         </div>
       ) : mappings.length === 0 ? (

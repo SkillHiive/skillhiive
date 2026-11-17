@@ -47,6 +47,19 @@ export function generateCSSVariables(): string {
     }
   }
   css += "}\n";
+
+  // Manual light class: wins over the dark media query when someone picks Light on a dark OS.
+  css += "\n.light {\n";
+  for (const [category, values] of Object.entries(light)) {
+    if (typeof values === "object" && values !== null) {
+      for (const [key, value] of Object.entries(values)) {
+        if (typeof value === "string" || typeof value === "number") {
+          css += `  --color-${category}-${key}: ${value};\n`;
+        }
+      }
+    }
+  }
+  css += "}\n";
   
   return css;
 }

@@ -22,7 +22,6 @@ export default function NotificationBell() {
   } = useNotifications();
 
   const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,36 +45,22 @@ export default function NotificationBell() {
   if (!isAuthed) return null;
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }} className="nav-block" >
+    <div ref={wrapRef} style={{ position: "relative" }}>
       <button
-        aria-label="Notifications"
+        type="button"
+        aria-label={pendingCount > 0 ? `Notifications, ${pendingCount} waiting for you` : "Notifications"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        className="transition-ui hover:scale-[1.025] active:scale-[1]"
-        style={{
-          position: "relative",
-          width: 44,
-          height: 44,
-          borderRadius: 16,
-          border: "none",
-          background: open || hover ? "rgba(255,253,1,0.12)" : "transparent",
-          color: open ? "#fffd01" : colors.text.primary,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "all 0.2s cubic-bezier(0.2,0.8,0.2,1)",
-          transform: hover ? "scale(1.05)" : "scale(1)",
-        }}
+        className="relative grid size-10 place-items-center rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-primary)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-border-strong)]"
       >
-        <Bell size={20} strokeWidth={2} fill={pendingCount > 0 ? "#fffd01" : "none"} color={pendingCount > 0 ? "#fffd01" : "currentColor"} />
+        <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
         {pendingCount > 0 && (
           <span
             style={{
               position: "absolute",
-              top: 6,
-              right: 6,
+              top: -4,
+              right: -4,
               minWidth: 16,
               height: 16,
               padding: pendingCount > 9 ? "0 4px" : 0,

@@ -78,7 +78,7 @@ describe("CueCard", () => {
   it("points to the Home page for projects instead of listing them", async () => {
     render(<CueCard hasTracker={false} />, { wrapper: MemoryRouter });
     await screen.findByText("rohans-air");
-    expect(screen.getByRole("link", { name: "Home page" }).getAttribute("href")).toBe("/home");
+    expect(screen.getByRole("link", { name: "Today" }).getAttribute("href")).toBe("/home");
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
@@ -90,7 +90,7 @@ describe("CueCard", () => {
     unmount();
 
     render(<CueCard hasTracker />, { wrapper: MemoryRouter });
-    const group = await screen.findByRole("radiogroup", { name: "Profile source" });
+    const group = await screen.findByRole("radiogroup", { name: "Time shown on your profile" });
     expect(screen.getByText(/Switching to Cue keeps your earlier history/)).toBeTruthy();
     expect(within(group).getByRole("radio", { name: "Wakatime / Hackatime" }).getAttribute("aria-checked")).toBe("true");
     await user.click(within(group).getByRole("radio", { name: "Cue" }));

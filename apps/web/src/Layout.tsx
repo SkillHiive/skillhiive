@@ -1,221 +1,215 @@
-import { Routes, Route, useLocation, useNavigate, useParams, Navigate } from "react-router";
-import { AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { lazy, Suspense } from "react";
+import { Routes, Route, useNavigate, useParams, Navigate } from "react-router";
 import "./Layout.css";
-import * as Page from "./pages";
-import * as Comp from "./components";
-import Cursor from "./components/Cursor";
+import Nav from "./components/Nav";
+import PageFallback from "./components/PageFallback";
 import { AuthGate } from "./components/AuthGate";
 import { ProfileProvider } from "./hooks/profileContext";
 import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
-import Lenis from 'lenis'
 import SEO from "./components/SEO";
 
-const ROUTE_ORDER = ["/", "/learn", "/profile"];
+// Each page is its own chunk, so opening one page doesn't download all the others.
+const Landing = lazy(() => import("./pages/Landing"));
+const Sign = lazy(() => import("./pages/Sign"));
+const Register = lazy(() => import("./pages/Register"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Home = lazy(() => import("./pages/Home"));
+const Feed = lazy(() => import("./pages/Feed"));
+const Rooms = lazy(() => import("./pages/Rooms"));
+const Room = lazy(() => import("./pages/Room"));
+const UserProfile = lazy(() => import("./pages/UserProfile"));
+const ProfileById = lazy(() => import("./pages/ProfileById"));
+const Project = lazy(() => import("./pages/Project"));
+const Post = lazy(() => import("./pages/Post"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const SettingsProfile = lazy(() => import("./pages/SettingsProfile"));
+const SettingsTrackers = lazy(() => import("./pages/SettingsTrackers"));
+const CueLink = lazy(() => import("./pages/CueLink"));
+const Terms = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Terms })));
+const Privacy = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Privacy })));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
-function AnimatedRoutes() {
-  const location = useLocation();
-  const [prevIndex, setPrevIndex] = useState(0);
-  const [direction, setDirection] = useState(1);
-  const router = useNavigate();
-
-  useEffect(() => {
-    const currentIndex = ROUTE_ORDER.indexOf(location.pathname);
-    if (currentIndex !== -1) {
-      setDirection(currentIndex >= prevIndex ? 1 : -1);
-      setPrevIndex(currentIndex);
-    }
-  }, [location.pathname, prevIndex]);
-
-  // One smooth-scroll instance for the life of the app, torn down on unmount.
-  useEffect(() => {
-    const lenis = new Lenis({ autoRaf: true });
-    return () => lenis.destroy();
-  }, []);
+function AppRoutes() {
+  const navigate = useNavigate();
 
   return (
-    <ProfileProvider>
-      <AnimatePresence mode="wait" custom={direction}>
-        <Routes location={location} key={location.pathname}>
-          <Route
-            path="/"
-            element={
-              <AuthGate require="guest">
-                <SEO />
-                <Page.Landing />
-              </AuthGate>
-            }
-          />
-          <Route
-            path="/login"
-            element={
-              <AuthGate require="guest">
-                <SEO />
-                <Page.Sign />
-              </AuthGate>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <AuthGate require="guest">
-                <SEO />
-                <Page.Register />
-              </AuthGate>
-            }
-          />
-          <Route
-            path="/home"
-            element={
-              <AuthGate require="auth">
-                <SEO />
-                <Page.Home />
-              </AuthGate>
-            }
-          />
-          <Route path="/learn" element={
+    <Suspense fallback={<PageFallback />}>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <AuthGate require="guest">
+              <SEO />
+              <Landing />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <AuthGate require="guest">
+              <SEO />
+              <Sign />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <AuthGate require="guest">
+              <SEO />
+              <Register />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <>
+              <SEO customMeta={{ title: "Choose a new password — SkillHiive", noIndex: true }} />
+              <ResetPassword />
+            </>
+          }
+        />
+        <Route
+          path="/home"
+          element={
             <AuthGate require="auth">
               <SEO />
-              <Page.Learn />
+              <Home />
             </AuthGate>
-          } />
-          <Route path="/feed" element={
+          }
+        />
+        <Route
+          path="/feed"
+          element={
             <AuthGate require="auth">
               <SEO />
-              <Page.Feed />
+              <Feed />
             </AuthGate>
-          } />
-          <Route path="/rooms" element={
+          }
+        />
+        <Route
+          path="/rooms"
+          element={
             <AuthGate require="auth">
               <SEO />
-              <Page.Rooms />
+              <Rooms />
             </AuthGate>
-          } />
-          <Route path="/review" element={<Navigate to="/home" replace />} />
-          <Route path="/profile" element={
+          }
+        />
+        <Route path="/review" element={<Navigate to="/home" replace />} />
+        <Route path="/learn" element={<Navigate to="/home" replace />} />
+        <Route
+          path="/profile"
+          element={
             <AuthGate require="auth">
               <SEO />
               <OwnProfile />
             </AuthGate>
-          } />
-          <Route path="/profile/:id" element={
+          }
+        />
+        <Route
+          path="/profile/:id"
+          element={
             <AuthGate require="auth">
-              <PublicProfileWithSEO />
+              <ProfileById />
             </AuthGate>
-          } />
-          <Route path="/p/:username" element={
+          }
+        />
+        <Route
+          path="/p/:username"
+          element={
             <>
               <SEO />
-              <Page.UserProfile />
+              <UserProfile />
             </>
-          } />
-          <Route path="/projects/:id" element={
+          }
+        />
+        <Route
+          path="/projects/:id"
+          element={
             <>
               <SEO />
-              <Page.Project />
+              <Project />
             </>
-          } />
-          <Route path="/post/:postId" element={
+          }
+        />
+        <Route
+          path="/post/:postId"
+          element={
             <AuthGate require="auth">
               <PostWithSEO />
             </AuthGate>
-          } />
-          <Route path="/notifications" element={
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
             <AuthGate require="auth">
               <SEO />
-              <Page.Notifications />
+              <Notifications />
             </AuthGate>
-          } />
-          <Route
-            path="/rooms/:roomName"
-            element={
-              <AuthGate require="auth">
-                <SEO />
-                <Page.Room supabase={supabase} onLeave={() => router("/")} />
-              </AuthGate>
-            }
-          />
-          <Route
-            path="/settings/profile"
-            element={
-              <AuthGate require="auth">
-                <SEO />
-                <Page.SettingsProfile />
-              </AuthGate>
-            }
-          />
-          <Route
-            path="/settings/trackers"
-            element={
-              <AuthGate require="auth">
-                <SEO />
-                <Page.SettingsTrackers />
-              </AuthGate>
-            }
-          />
-          <Route path="/link" element={<><SEO /><Page.CueLink /></>} />
-          <Route path="/terms" element={<><SEO /><Page.Terms /></>} />
-          <Route path="/privacy" element={<><SEO /><Page.Privacy /></>} />
-          <Route path="*" element={<Page.NotFound />} />
-        </Routes>
-      </AnimatePresence>
-    </ProfileProvider>
+          }
+        />
+        <Route
+          path="/rooms/:roomName"
+          element={
+            <AuthGate require="auth">
+              <SEO />
+              <Room supabase={supabase} onLeave={() => navigate("/rooms")} />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/settings"
+          element={<Navigate to="/settings/profile" replace />}
+        />
+        <Route
+          path="/settings/profile"
+          element={
+            <AuthGate require="auth">
+              <SEO />
+              <SettingsProfile />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/settings/trackers"
+          element={
+            <AuthGate require="auth">
+              <SEO />
+              <SettingsTrackers />
+            </AuthGate>
+          }
+        />
+        <Route path="/link" element={<><SEO /><CueLink /></>} />
+        <Route path="/terms" element={<><SEO /><Terms /></>} />
+        <Route path="/privacy" element={<><SEO /><Privacy /></>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }
 
 export default function App() {
   return (
-    <>
-      <Cursor />
-      <Comp.Nav />
-      <AnimatedRoutes />
-    </>
+    <ProfileProvider>
+      <Nav />
+      <AppRoutes />
+    </ProfileProvider>
   );
 }
 
-function PublicProfileWithSEO() {
-  const params = useParams<{ id: string }>();
-  return (
-    <>
-      <SEO dynamicParams={{ id: params.id ?? "" }} />
-      <Page.PublicProfile />
-    </>
-  );
-}
-
-/** /profile → the auto-generated public profile for the signed-in user. */
+/** /profile → your own public profile. */
 function OwnProfile() {
   const { profile, loading } = useProfile();
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span
-          style={{
-            width: 24,
-            height: 24,
-            border: "2px solid rgba(128,128,128,0.3)",
-            borderTopColor: "#fffd01",
-            borderRadius: "50%",
-            display: "inline-block",
-            animation: "own-profile-spin 0.8s linear infinite",
-          }}
-        />
-        <style>{`@keyframes own-profile-spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+  if (loading) return <PageFallback />;
 
   if (profile?.username) {
-    return <Navigate to={`/p/${profile.username}`} replace />;
+    return <Navigate to={`/p/${encodeURIComponent(profile.username)}`} replace />;
   }
 
   // No username yet — send them to pick one first.
@@ -227,7 +221,7 @@ function PostWithSEO() {
   return (
     <>
       <SEO dynamicParams={{ id: params.postId ?? "" }} />
-      <Page.Post />
+      <Post />
     </>
   );
 }

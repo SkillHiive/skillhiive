@@ -24,8 +24,18 @@ function systemPrefersDark(): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+/** The theme the app chose, from the "light"/"dark" class it puts on <html>, if any. */
+function documentTheme(): ResolvedMode | null {
+  if (typeof document === "undefined") return null;
+  const classes = document.documentElement.classList;
+  if (classes.contains("dark")) return "dark";
+  if (classes.contains("light")) return "light";
+  return null;
+}
+
 export function useWebTokens(theme: "light" | "dark" | "system" = "system"): WebTokens {
   const [systemDark, setSystemDark] = useState<boolean>(systemPrefersDark);
+  const [chosen, setChosen] = useState<ResolvedMode | null>(documentTheme);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -35,7 +45,16 @@ export function useWebTokens(theme: "light" | "dark" | "system" = "system"): Web
     return () => mql.removeEventListener?.("change", handler);
   }, []);
 
-  const mode: ResolvedMode = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  // Follow the app's theme switch, so shared components match the page they sit on.
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => setChosen(documentTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const mode: ResolvedMode =
+    theme !== "system" ? theme : (chosen ?? (systemDark ? "dark" : "light"));
 
   return {
     mode,

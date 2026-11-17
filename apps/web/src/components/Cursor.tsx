@@ -1,13 +1,30 @@
-
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * The landing page's glowing cursor. It only runs for mouse users who have not asked
+ * for reduced motion; everyone else keeps the system cursor. While it runs it adds
+ * `custom-cursor` to <html>, which hides the system cursor (see index.css).
+ */
+function wantsCustomCursor(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return (
+    window.matchMedia("(pointer: fine)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export default function Cursor() {
+  const [enabled] = useState(wantsCustomCursor);
   const [cursorActive, setCursorActive] = useState(false);
 
   const glowRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    root.classList.add("custom-cursor");
+
     let mouseX = 0;
     let mouseY = 0;
     let glowX = 0;
@@ -49,12 +66,15 @@ export default function Cursor() {
     animateGlow();
 
     return () => {
+      root.classList.remove("custom-cursor");
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseleave", handleMouseLeave);
 
       cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) return null;
 
   return (
     <>
