@@ -1,23 +1,30 @@
 "use client";
 
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
 import { useTokens } from "@/theme";
+import { computePhase, type PhaseState } from "@/hooks/sessionPhase";
+import { serverNow } from "@/lib/room";
 
 
-export type RoomState = "active" | "break" | "empty";
+/** "live" is a room with people in it (its clock may not have started yet); "empty" is the no-rooms placeholder. */
+export type RoomState = "live" | "empty";
 
 export interface WorkRoomCardProps {
   state: RoomState;
   name: string;
   tag: string;
   members?: string[];
-  phaseStartedAt?: number;
-  phaseDurationMs?: number;
-  timerSeconds?: number;
-  breakSeconds?: number;
+  /** When the room's focus/break clock started (server time), or null if it hasn't. */
+  sessionStartedAt?: string | null;
+  /** How far this computer's clock is behind the server's, in ms. */
+  clockOffsetMs?: number;
   onJoin?: () => void;
   onStart?: () => void;
   style?: React.CSSProperties;
+}
+
+interface PhaseCardProps extends WorkRoomCardProps {
+  phase: PhaseState;
 }
 
 const ACCENT = {
@@ -49,31 +56,21 @@ function usePalette() {
 }
 
 
-function useCountdown(initialSeconds: number) {
-  const snapshotRef = useRef(initialSeconds);
-  const [seconds, setSeconds] = useState(initialSeconds);
-
+/** The room's phase on the server's clock, re-read every second while the clock runs. */
+function useServerPhase(sessionStartedAt: string | null | undefined, clockOffsetMs: number): PhaseState {
+  const [now, setNow] = useState(() => serverNow(clockOffsetMs));
   useEffect(() => {
-    if (Math.abs(initialSeconds - snapshotRef.current) > 5) {
-      snapshotRef.current = initialSeconds;
-      setSeconds(initialSeconds);
-    }
-  }, [initialSeconds]);
-
-  useEffect(() => {
-    const id = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
+    if (!sessionStartedAt) return;
+    const id = setInterval(() => setNow(serverNow(clockOffsetMs)), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [sessionStartedAt, clockOffsetMs]);
+  return computePhase(sessionStartedAt ?? null, now);
+}
 
-  const progress = useMemo(() => {
-    if (!snapshotRef.current) return 0;
-    return seconds / snapshotRef.current;
-  }, [seconds]);
-
-  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const ss = String(seconds % 60).padStart(2, "0");
-
-  return { formatted: `${mm}:${ss}`, progress };
+function formatClock(totalSeconds: number) {
+  const mm = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const ss = String(totalSeconds % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
 }
 
 
@@ -163,9 +160,10 @@ function Card({ children, style, accent }: { children: React.ReactNode; style?: 
 }
 
 
-const ActiveCard = memo(function ActiveCard({ name, tag, members = [], timerSeconds = 1500, onJoin, style }: WorkRoomCardProps) {
+const ActiveCard = memo(function ActiveCard({ name, tag, members = [], phase, onJoin, style }: PhaseCardProps) {
   const p = usePalette();
-  const { formatted, progress } = useCountdown(timerSeconds);
+  const formatted = formatClock(phase.remainingSeconds);
+  const progress = 1 - phase.progress;
   return (
     <Card style={style} accent>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
@@ -199,9 +197,10 @@ const ActiveCard = memo(function ActiveCard({ name, tag, members = [], timerSeco
 });
 
 
-const BreakCard = memo(function BreakCard({ name, tag, members = [], breakSeconds = 300, onJoin, style }: WorkRoomCardProps) {
+const BreakCard = memo(function BreakCard({ name, tag, members = [], phase, onJoin, style }: PhaseCardProps) {
   const p = usePalette();
-  const { formatted, progress } = useCountdown(breakSeconds);
+  const formatted = formatClock(phase.remainingSeconds);
+  const progress = 1 - phase.progress;
   return (
     <Card style={style} accent>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
@@ -235,7 +234,31 @@ const BreakCard = memo(function BreakCard({ name, tag, members = [], breakSecond
 });
 
 
-const EmptyCard = memo(function EmptyCard({ name, tag, style }: WorkRoomCardProps) {
+/** People are inside but the room's clock hasn't started: no timer yet, still joinable. */
+const WaitingCard = memo(function WaitingCard({ name, tag, members = [], onJoin, style }: WorkRoomCardProps) {
+  const p = usePalette();
+  return (
+    <Card style={style}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: p.text, fontSize: 16, fontWeight: 700, letterSpacing: -0.3, marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Tag label={tag} color={p.muted} bg={p.track} />
+          </div>
+        </div>
+        <Button label="Join" onPress={onJoin} color={p.text} />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <AvatarStack names={members} ringBorder={p.ringBorder} />
+        <span style={{ color: p.muted, fontSize: 11, fontWeight: 500, marginLeft: 5 }}>{members.length} here</span>
+      </div>
+    </Card>
+  );
+});
+
+
+const EmptyCard = memo(function EmptyCard({ name, tag, onStart, style }: WorkRoomCardProps) {
   const p = usePalette();
   return (
     <Card style={style}>
@@ -246,6 +269,7 @@ const EmptyCard = memo(function EmptyCard({ name, tag, style }: WorkRoomCardProp
             <Tag label={tag} color={p.muted} bg={p.track} />
           </div>
         </div>
+        {onStart && <Button label="Start" onPress={onStart} filled color={p.accentBorder} />}
       </div>
       <div>
         <div style={{ color: p.text, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Nobody's here yet</div>
@@ -257,7 +281,13 @@ const EmptyCard = memo(function EmptyCard({ name, tag, style }: WorkRoomCardProp
 
 
 export function WorkRoomCard(props: WorkRoomCardProps) {
-  if (props.state === "active") return <ActiveCard {...props} />;
-  if (props.state === "break") return <BreakCard {...props} />;
-  return <EmptyCard {...props} />;
+  if (props.state === "empty") return <EmptyCard {...props} />;
+  return <LiveCard {...props} />;
+}
+
+function LiveCard(props: WorkRoomCardProps) {
+  const phase = useServerPhase(props.sessionStartedAt, props.clockOffsetMs ?? 0);
+  if (phase.phase === "focus") return <ActiveCard {...props} phase={phase} />;
+  if (phase.phase === "break") return <BreakCard {...props} phase={phase} />;
+  return <WaitingCard {...props} />;
 }

@@ -1,14 +1,15 @@
 import { supabase } from "@/lib/supabase";
 import { useEffect, useRef } from "react";
 
+/**
+ * Keeps a `room_participants` row for us while `roomName` is set, and takes it away when it is
+ * cleared or the component unmounts. Pass `undefined` until the user is actually in the room, so
+ * a camera preview or a rejected join never shows up in the rooms list or starts its clock.
+ */
 export function useRoomPresence(
   roomName: string | undefined,
   onJoinFailed?: () => void,
 ) {
-  const participantId = useRef<string | null>(null);
-  const userIdRef = useRef<string | null>(null);
-  const joinedRef = useRef(false);
-  const sessionTriggeredRef = useRef(false);
   // The join effect must only re-run for a new room, so it reads the latest callback through a ref.
   const onJoinFailedRef = useRef(onJoinFailed);
   useEffect(() => {
@@ -17,6 +18,29 @@ export function useRoomPresence(
 
   useEffect(() => {
     if (!roomName) return;
+    const room = roomName;
+
+    // Per run of this effect, so a leave that overtakes a slow join still cleans up after it.
+    let cancelled = false;
+    let participantId: string | null = null;
+    let userId: string | null = null;
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+    const fail = () => {
+      if (!cancelled) onJoinFailedRef.current?.();
+    };
+
+    async function removeRow(id: string | null, uid: string) {
+      if (id) {
+        const { error } = await supabase.from("room_participants").delete().eq("id", id);
+        if (!error) return;
+      }
+      await supabase
+        .from("room_participants")
+        .delete()
+        .eq("user_id", uid)
+        .eq("room_name", room);
+    }
 
     async function join() {
       try {
@@ -24,115 +48,77 @@ export function useRoomPresence(
           data: { user },
           error: userError,
         } = await supabase.auth.getUser();
-        if (userError || !user) {
-          onJoinFailedRef.current?.();
-          return;
-        }
+        if (cancelled) return;
+        if (userError || !user) return fail();
 
-        userIdRef.current = user.id;
+        userId = user.id;
 
         await supabase
           .from("room_participants")
           .delete()
           .eq("user_id", user.id)
-          .eq("room_name", roomName);
+          .eq("room_name", room);
+        if (cancelled) return;
 
         const { data, error: insertError } = await supabase
           .from("room_participants")
           .insert({
-            room_name: roomName,
+            room_name: room,
             user_id: user.id,
             joined_at: new Date().toISOString(),
           })
           .select("id")
           .single();
 
-        if (insertError || !data) {
-          onJoinFailedRef.current?.();
-          return;
-        }
+        if (insertError || !data) return fail();
+        participantId = data.id as string;
+        // Left while the insert was in flight: take the row straight back out.
+        if (cancelled) return void removeRow(participantId, user.id);
 
         const { data: verify, error: verifyError } = await supabase
           .from("room_participants")
           .select("id")
           .eq("id", data.id)
           .single();
+        if (cancelled) return;
         if (verifyError || !verify) {
-          onJoinFailedRef.current?.();
-          return;
+          void removeRow(participantId, user.id);
+          return fail();
         }
 
-        participantId.current = data.id;
-        joinedRef.current = true;
-
-        if (!sessionTriggeredRef.current) {
-          sessionTriggeredRef.current = true;
-          const { error } = await supabase.rpc(
-            "start_room_session_if_not_started",
-            { p_room_name: roomName },
-          );
-          if (error) console.error("start_room_session error:", error);
-        }
-      } catch (err) {
-        console.error("Room join failed:", err);
-        onJoinFailedRef.current?.();
-      }
-    }
-
-    async function leave() {
-      if (!joinedRef.current || !userIdRef.current) return;
-      if (participantId.current) {
-        const { error } = await supabase
-          .from("room_participants")
-          .delete()
-          .eq("id", participantId.current);
-        if (error) {
-          await supabase
-            .from("room_participants")
-            .delete()
-            .eq("user_id", userIdRef.current)
-            .eq("room_name", roomName);
-        }
-      } else {
-        await supabase
-          .from("room_participants")
-          .delete()
-          .eq("user_id", userIdRef.current)
-          .eq("room_name", roomName);
-      }
-      participantId.current = null;
-      userIdRef.current = null;
-      joinedRef.current = false;
-    }
-
-    let heartbeat: ReturnType<typeof setInterval> | null = null;
-
-    join().then(() => {
-      if (joinedRef.current) {
-        heartbeat = setInterval(async () => {
-          if (!participantId.current || !joinedRef.current) return;
-          await supabase
+        heartbeat = setInterval(() => {
+          if (!participantId) return;
+          void supabase
             .from("room_participants")
             .update({ last_seen: new Date().toISOString() })
-            .eq("id", participantId.current);
+            .eq("id", participantId);
         }, 30000);
+
+        const { error } = await supabase.rpc("start_room_session_if_not_started", {
+          p_room_name: room,
+        });
+        if (error) console.error("start_room_session error:", error);
+      } catch (err) {
+        console.error("Room join failed:", err);
+        fail();
       }
-    });
+    }
+
+    void join();
 
     const onUnload = () => {
-      if (participantId.current) {
-        void supabase
-          .from("room_participants")
-          .delete()
-          .eq("id", participantId.current);
+      if (participantId) {
+        void supabase.from("room_participants").delete().eq("id", participantId);
       }
     };
     window.addEventListener("beforeunload", onUnload);
 
     return () => {
+      cancelled = true;
       if (heartbeat) clearInterval(heartbeat);
       window.removeEventListener("beforeunload", onUnload);
-      void leave();
+      // A join still in flight sees `cancelled` and removes its own row once its insert lands.
+      if (userId && participantId) void removeRow(participantId, userId);
     };
   }, [roomName]);
 }

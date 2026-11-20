@@ -22,8 +22,10 @@ import { useRoomPresence } from "@/hooks/useRoomPresence";
 import { useRoomSession } from "@/hooks/useRoomSession";
 import { useTokens } from "@/theme/useTokens";
 import { errorMessage } from "@/lib/errors";
+import { useConfirm } from "@/lib/confirm";
 import {
   clockOffset,
+  rememberClockOffset,
   CUBICLE_TOPIC,
   decodeCubicleMessage,
   encodeCubicleMessage,
@@ -34,6 +36,8 @@ const LIVEKIT_URL = "wss://rooms.skillhiive.com";
 const TOKEN_ENDPOINT = "https://api.skillhivelabs.com/getToken";
 const CUBICLE_ENDPOINT = "https://api.skillhivelabs.com/cubicle";
 const NOTICE_MS = 6000;
+/** An unanswered cubicle request is withdrawn after this long. */
+const CUBICLE_REQUEST_TIMEOUT_MS = 30_000;
 
 /** The token server turned us away: the room is at its cap. Not worth retrying. */
 class RoomFullError extends Error {}
@@ -187,6 +191,8 @@ export default function RoomScreen({
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [roomFull, setRoomFull] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // True once we are actually inside the LiveKit room; presence is only written from then on.
+  const [joined, setJoined] = useState(false);
 
   const intentionalLeaveRef = useRef(false);
   const connectedRef = useRef(false);
@@ -198,15 +204,22 @@ export default function RoomScreen({
   // The token the server gave us when it created a cubicle, held until the other person accepts.
   const pendingCubicleRef = useRef<{ cubicleRoomName: string; token: string } | null>(null);
   const handleCubicleMessageRef = useRef<(sender: string, message: CubicleMessage) => void>(() => {});
+  const cancelCubicleRequestRef = useRef<() => void>(() => {});
+  // Bumped whenever a request is made or withdrawn, so a late server answer can tell it is stale.
+  const cubicleRequestSeqRef = useRef(0);
   const cubicleJoinCancelledRef = useRef(false);
   const cubicleRef = useRef<CubicleState>({ status: "idle" });
   const shownCubicleAlertRef = useRef<string | null>(null);
+  const inviteDialogRef = useRef<AbortController | null>(null);
   const prevPhaseRef = useRef<string>("waiting");
   const reconnectAttemptRef = useRef(0);
 
   const { colors } = useTokens();
+  const confirm = useConfirm();
 
-  useRoomPresence(roomName, () => {
+  // Only someone who is in the room shows up in the rooms list (and starts its clock); a failed
+  // join, an error screen or leaving takes the row away again.
+  useRoomPresence(joined && !error ? roomName : undefined, () => {
     intentionalLeaveRef.current = true;
     setError("Couldn't join the room. Please try again.");
   });
@@ -323,7 +336,9 @@ export default function RoomScreen({
         if (!data.token) throw new Error("No token received");
         // Keep the phase clock on the server's time, not this computer's.
         if (typeof data.serverTime === "number") {
-          setClockOffsetMs(clockOffset(sentAt, receivedAt, data.serverTime));
+          const offset = clockOffset(sentAt, receivedAt, data.serverTime);
+          setClockOffsetMs(offset);
+          rememberClockOffset(offset);
         }
         setToken(data.token);
         return;
@@ -386,17 +401,50 @@ export default function RoomScreen({
       return;
     }
     cubicleJoinCancelledRef.current = false;
-    setCubicle({ status: "requesting", targetIdentity });
+    const seq = ++cubicleRequestSeqRef.current;
+    const requesting: CubicleState = { status: "requesting", targetIdentity };
+    cubicleRef.current = requesting;
+    setCubicle(requesting);
     try {
       const made = await createCubicleOnServer(targetIdentity);
+      // Withdrawn (cancelled or timed out) while the server was answering.
+      if (seq !== cubicleRequestSeqRef.current) return;
       pendingCubicleRef.current = made;
-      setCubicleSet((p) => new Set(p).add(profile.username!).add(targetIdentity));
+      // The cubicle badges appear once they accept (joinCubicleRoom), not before.
       await sendCubicleMessage(targetIdentity, { event: "request", cubicleRoomName: made.cubicleRoomName });
     } catch (e) {
+      if (seq !== cubicleRequestSeqRef.current) return;
       pendingCubicleRef.current = null;
+      cubicleRef.current = { status: "idle" };
       setCubicle({ status: "idle" });
       setNotice(errorMessage(e) ?? "Couldn't open a cubicle.");
     }
+  }
+
+  /** Withdraw our unanswered request (the cancel button, or the timeout). */
+  function cancelCubicleRequest() {
+    const cur = cubicleRef.current;
+    if (cur.status !== "requesting") return;
+    cubicleRequestSeqRef.current++;
+    const invited = pendingCubicleRef.current !== null;
+    pendingCubicleRef.current = null;
+    cubicleRef.current = { status: "idle" };
+    setCubicle({ status: "idle" });
+    // "end" closes their invite, or their side of the cubicle if they accepted at the same moment.
+    if (invited) void sendCubicleMessage(cur.targetIdentity, { event: "end" });
+  }
+
+  /** A double-tap asks first; the tile menu's "Open Cubicle" is already a deliberate choice. */
+  async function requestCubicle(targetIdentity: string, confirmed = false) {
+    if (!confirmed && cubicleRef.current.status === "idle") {
+      const ok = await confirm({
+        title: `Cubicle with ${targetIdentity}?`,
+        confirmLabel: "Invite",
+        tone: "neutral",
+      });
+      if (!ok) return;
+    }
+    await sendCubicleRequest(targetIdentity);
   }
 
   async function acceptCubicle() {
@@ -529,6 +577,13 @@ export default function RoomScreen({
         setNotice(`${sender} declined your cubicle request.`);
         return;
       case "end":
+        if (cur.status === "incoming" && cur.fromIdentity === sender) {
+          // They withdrew the invite (or it timed out) before we answered.
+          cubicleJoinCancelledRef.current = true;
+          cubicleRef.current = { status: "idle" };
+          setCubicle({ status: "idle" });
+          return;
+        }
         if (cur.status !== "active" || cur.partnerIdentity !== sender) return;
         void endCubicleLocal(sender);
         return;
@@ -537,7 +592,14 @@ export default function RoomScreen({
 
   useEffect(() => {
     handleCubicleMessageRef.current = handleCubicleMessage;
+    cancelCubicleRequestRef.current = cancelCubicleRequest;
   });
+
+  useEffect(() => {
+    if (cubicle.status !== "requesting") return;
+    const t = setTimeout(() => cancelCubicleRequestRef.current(), CUBICLE_REQUEST_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [cubicle]);
 
   useEffect(() => {
     if (!profile?.username) return;
@@ -577,6 +639,7 @@ export default function RoomScreen({
     connectedRef.current = true;
     reconnectAttemptRef.current = 0;
     setReconnecting(false);
+    setJoined(true);
     const r = roomRef.current;
     if (!r) return;
 
@@ -663,8 +726,10 @@ export default function RoomScreen({
     if (!phaseState.micAllowed) {
       const m = Math.floor(phaseState.remainingSeconds / 60),
         s = phaseState.remainingSeconds % 60;
-      alert(
-        `Mic locked during focus. Mics unlock in ${m}m ${s}s when the break starts.`,
+      setNotice(
+        phaseState.phase === "focus"
+          ? `Mic opens in ${m}:${pad2(s)}`
+          : "Mic opens at the break",
       );
       return;
     }
@@ -714,7 +779,7 @@ export default function RoomScreen({
       camEnabledRef.current = lp.isCameraEnabled;
       setCamEnabled(lp.isCameraEnabled);
     } catch (e) {
-      alert(`Camera flip failed: ${errorMessage(e) ?? "Unknown"}`);
+      setNotice(`Couldn't flip the camera: ${errorMessage(e) ?? "unknown error"}`);
     }
   }
 
@@ -747,16 +812,29 @@ export default function RoomScreen({
   useEffect(() => {
     if (cubicle.status !== "incoming") {
       shownCubicleAlertRef.current = null;
+      // A withdrawn or timed-out invite closes its dialog.
+      inviteDialogRef.current?.abort();
+      inviteDialogRef.current = null;
       return;
     }
     const key = cubicle.fromIdentity;
     if (shownCubicleAlertRef.current === key) return;
     shownCubicleAlertRef.current = key;
-    const accepted = window.confirm(
-      `${cubicle.fromIdentity} wants to open a private cubicle with you. Accept?`,
-    );
-    if (accepted) acceptCubicle();
-    else declineCubicle();
+    inviteDialogRef.current?.abort();
+    const dialog = new AbortController();
+    inviteDialogRef.current = dialog;
+    void confirm({
+      title: `Cubicle with ${key}?`,
+      confirmLabel: "Join",
+      tone: "neutral",
+      signal: dialog.signal,
+    }).then((answer) => {
+      // They may have withdrawn the invite while the dialog was open.
+      const cur = cubicleRef.current;
+      if (cur.status !== "incoming" || cur.fromIdentity !== key) return;
+      if (answer) void acceptCubicle();
+      else void declineCubicle();
+    });
   }, [cubicle.status]);
 
   if (!lobbyDone) {
@@ -878,6 +956,7 @@ export default function RoomScreen({
             onClick={() => {
                reconnectAttemptRef.current = 0;
                setReconnecting(false);
+              setJoined(false);
               setError(null);
               setToken(null);
               setLivekitReady(false);
@@ -992,7 +1071,7 @@ export default function RoomScreen({
               onUnfocus={unfocusParticipant}
               camOffSet={camOffSet}
               cubicleSet={cubicleSet}
-              onDoubleTap={sendCubicleRequest}
+              onDoubleTap={requestCubicle}
               myIdentity={profile?.username ?? ""}
             />
           </div>
@@ -1138,6 +1217,72 @@ export default function RoomScreen({
             onEnd={endCubicle}
           />
         </LiveKitRoom>
+      )}
+
+      {cubicle.status === "requesting" && (
+        <div
+          role="status"
+          aria-label={`Cubicle request to ${cubicle.targetIdentity}`}
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 140,
+            transform: "translateX(-50%)",
+            maxWidth: "min(92vw, 320px)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "6px 6px 6px 14px",
+            borderRadius: 999,
+            background: colors.surface.secondary,
+            border: `1px solid ${colors.tint.accent}55`,
+            color: colors.text.primary,
+            fontSize: 14,
+            fontWeight: 600,
+            zIndex: 60,
+          }}
+        >
+          <style>{`@keyframes cubicle-wait { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }`}</style>
+          <span
+            aria-hidden
+            style={{
+              color: colors.tint.accent,
+              animation: "cubicle-wait 1.2s ease-in-out infinite",
+            }}
+          >
+            ⬡
+          </span>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {cubicle.targetIdentity}
+          </span>
+          <button
+            type="button"
+            aria-label="Cancel cubicle request"
+            title="Cancel"
+            onClick={cancelCubicleRequest}
+            style={{
+              width: 28,
+              height: 28,
+              flexShrink: 0,
+              borderRadius: 14,
+              border: "none",
+              background: colors.surface.raised,
+              color: colors.text.secondary,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "inherit",
+            }}
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {notice && (
@@ -1670,7 +1815,8 @@ function ConferenceView({
   onUnfocus: () => void;
   camOffSet: Set<string>;
   cubicleSet: Set<string>;
-  onDoubleTap: (id: string) => void;
+  /** `confirmed` is true from the tile menu; a bare double-tap asks first. */
+  onDoubleTap: (id: string, confirmed?: boolean) => void;
   myIdentity: string;
 }) {
    const { colors } = useTokens();
@@ -1965,7 +2111,8 @@ function ParticipantTile({
   onFocus: (id: string) => void;
   onUnfocus: () => void;
   isFocused: boolean;
-  onDoubleTap: (id: string) => void;
+  /** `confirmed` is true from the tile menu; a bare double-tap asks first. */
+  onDoubleTap: (id: string, confirmed?: boolean) => void;
   isMe: boolean;
 }) {
   const { colors } = useTokens();
@@ -2253,7 +2400,7 @@ function ParticipantTile({
             !isMe
               ? () => {
                   setMenuVisible(false);
-                  onDoubleTap(p.identity);
+                  onDoubleTap(p.identity, true);
                 }
               : undefined
           }
@@ -2281,7 +2428,8 @@ function AvatarTile({
   inCubicle: boolean;
   onFocus: (id: string) => void;
   onUnfocus: () => void;
-  onDoubleTap: (id: string) => void;
+  /** `confirmed` is true from the tile menu; a bare double-tap asks first. */
+  onDoubleTap: (id: string, confirmed?: boolean) => void;
   isMe: boolean;
 }) {
   const { colors } = useTokens();
@@ -2427,7 +2575,7 @@ function AvatarTile({
             !isMe
               ? () => {
                   setMenuVisible(false);
-                  onDoubleTap(identity);
+                  onDoubleTap(identity, true);
                 }
               : undefined
           }

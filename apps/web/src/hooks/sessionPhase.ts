@@ -25,7 +25,8 @@ export function computePhase(
     };
   }
 
-  const elapsed = now - new Date(session_started_at).getTime();
+  // A start a moment in the future (clock skew, a stale "now") reads as the start of focus.
+  const elapsed = Math.max(0, now - new Date(session_started_at).getTime());
   const pos = elapsed % CYCLE_MS;
 
   if (pos < FOCUS_MS) {

@@ -132,7 +132,7 @@ export function RoomLobby({ roomName, username, onJoin, onCancel }: RoomLobbyPro
         {/* Mic badge */}
         <div style={{ position: "absolute", top: 12, left: 12, display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 20, background: "rgba(0,0,0,0.55)" }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>Mic locked until session starts</span>
+          <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>Mic opens at break</span>
         </div>
 
         {/* Flip button */}
@@ -161,10 +161,6 @@ export function RoomLobby({ roomName, username, onJoin, onCancel }: RoomLobbyPro
             <span style={{ fontSize: 13, fontWeight: 600, color: colors.text.tertiary }}>Mic locked</span>
           </div>
         </div>
-
-        <p style={{ fontSize: 12, lineHeight: 1.5, textAlign: "center", color: colors.text.tertiary, margin: 0 }}>
-          Microphone unlocks when the session starts. Camera is optional.
-        </p>
 
         <button onClick={() => onJoin(camOn, facing === "user")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "16px 0", borderRadius: 14, background: colors.surface.skillhive, border: "none", cursor: "pointer" }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: "#000" }}>Join room</span>

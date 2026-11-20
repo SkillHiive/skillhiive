@@ -17,8 +17,30 @@ export default function ConfirmProvider({ children }: { children: ReactNode }) {
   const confirm = useCallback<ConfirmFn>(
     (options) =>
       new Promise((resolve) => {
+        if (options.signal?.aborted) {
+          resolve(null);
+          return;
+        }
+        let settled = false;
+        const settle = (result: { checked: boolean } | null) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+        // Aborting closes the dialog as a "no", unless the person already answered.
+        options.signal?.addEventListener(
+          "abort",
+          () => {
+            setPending((cur) => {
+              if (cur?.resolve === settle) setOpen(false);
+              return cur;
+            });
+            settle(null);
+          },
+          { once: true },
+        );
         setChecked(false);
-        setPending({ options, resolve });
+        setPending({ options, resolve: settle });
         setOpen(true);
       }),
     [],
