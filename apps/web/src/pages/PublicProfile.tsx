@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Swords, Check, X } from "lucide-react";
+import { Swords, Check, X } from "lucide-react";
 import SwipeLayout from "@/components/SwipeLayout";
 import { Text } from "@skillhiive/ui";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
+import { BackLink } from "@/components/ui/BackLink";
 import { CodingTimeProfileCard } from "@/components/CodingTime";
 
 const FONT =
@@ -377,18 +378,7 @@ export default function PublicProfile() {
         }}
       >
         <Text tone="tertiary">User not found.</Text>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          <Text tone="tint" weight={600}>
-            Go back
-          </Text>
-        </button>
+        <BackLink to="/feed" label="Feed" />
       </div>
     );
   }
@@ -441,28 +431,7 @@ export default function PublicProfile() {
               inset: 0,
             }}
           />
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              position: "absolute",
-              top: 80,
-              left: 16,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "rgba(0,0,0,0.45)",
-              border: "none",
-              color: "#fff",
-              padding: "6px 12px",
-              borderRadius: 999,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            <ArrowLeft size={14} /> Back
-          </button>
+          <BackLink to="/feed" label="Feed" onImage className="absolute left-4 top-20" />
         </div>
 
         {/* Card */}

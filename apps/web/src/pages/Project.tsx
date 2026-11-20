@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Clock, FolderGit2 } from "lucide-react";
+import { useParams } from "react-router";
+import { Clock, FolderGit2 } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
+import { BackLink } from "@/components/ui/BackLink";
 import { useProfile } from "@/hooks/useProfile";
 import { useProjectCodingTime, useTrackerConnection } from "@/hooks/useTimeTracker";
 import { CodingTimeBadge, LanguageBreakdown, WakatimeConnectCard } from "@/components/CodingTime";
@@ -25,7 +26,6 @@ function formatHours(minutes: number): string {
 
 export default function Project() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { colors, spacing, radii } = useTokens();
   const { profile: me } = useProfile();
 
@@ -90,14 +90,7 @@ export default function Project() {
         }}
       >
         <Text tone="tertiary">Project not found.</Text>
-        <button
-          onClick={() => navigate(-1)}
-          style={{ background: "transparent", border: "none", cursor: "pointer" }}
-        >
-          <Text tone="tint" weight={600}>
-            Go back
-          </Text>
-        </button>
+        <BackLink to="/home" label="Home" />
       </div>
     );
   }
@@ -122,26 +115,11 @@ export default function Project() {
           gap: spacing.lg,
         }}
       >
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: colors.text.secondary,
-            fontFamily: "inherit",
-            fontSize: 14,
-            fontWeight: 600,
-            padding: 0,
-            width: "fit-content",
-          }}
-        >
-          <ArrowLeft size={18} />
-          Back
-        </button>
+        <BackLink
+          to={summary.owner_username ? `/p/${encodeURIComponent(summary.owner_username)}` : "/home"}
+          label={summary.owner_username ? `@${summary.owner_username}` : "Home"}
+          className="w-fit"
+        />
 
         <div style={{ display: "flex", gap: spacing.base, alignItems: "center" }}>
           <div

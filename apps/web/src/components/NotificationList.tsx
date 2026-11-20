@@ -1,3 +1,4 @@
+import { SkeletonRows } from "@/components/ui/States";
 import { useNavigate } from "react-router";
 import { BellOff, Check, X } from "lucide-react";
 import { Avatar } from "@skillhiive/ui";
@@ -68,12 +69,8 @@ export default function NotificationList({
 
   if (loading) {
     return (
-      <div role="status" className="flex justify-center py-10">
-        <span
-          aria-hidden="true"
-          className="size-5 animate-spin rounded-full border-2 border-[var(--color-border-strong)] border-t-[var(--color-text-primary)]"
-        />
-        <span className="sr-only">Loading notifications</span>
+      <div className="py-2">
+        <SkeletonRows rows={compact ? 2 : 3} height={60} />
       </div>
     );
   }
@@ -85,9 +82,6 @@ export default function NotificationList({
       <div className={`flex flex-col items-center gap-2 text-center ${compact ? "py-8" : "py-16"}`}>
         <BellOff size={26} strokeWidth={1.5} aria-hidden="true" className="text-[var(--color-text-secondary)]" />
         <p className="text-sm font-medium text-[var(--color-text-primary)]">You're all caught up</p>
-        <p className="max-w-[16rem] text-xs text-[var(--color-text-secondary)]">
-          Ally requests and new allies show up here.
-        </p>
       </div>
     );
   }

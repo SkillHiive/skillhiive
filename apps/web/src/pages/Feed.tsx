@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { fetchAllyIds } from "@/lib/allies";
 import { loadErrorMessage, withTimeout } from "@/lib/load";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { Segmented } from "@/components/ui/Segmented";
+import { EmptyState, SkeletonRows } from "@/components/ui/States";
 import {
   Briefcase,
   Camera,
@@ -12,7 +14,10 @@ import {
   X,
   ChevronDown,
   ArrowUp,
+  Sparkles,
+  Users,
 } from "lucide-react";
+import { Link } from "react-router";
 import SwipeLayout from "@/components/SwipeLayout";
 import { Avatar, Text } from "@skillhiive/ui";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
@@ -790,26 +795,20 @@ export default function Feed() {
           </div>
 
           {/* Filters */}
-          <div
-            style={{
-              display: "flex",
-              gap: spacing.sm,
-              marginBottom: spacing.lg,
-            }}
-          >
-            {(["all", "projects"] as const).map((f) => (
-              <Chip
-                key={f}
-                active={filter === f}
-                onClick={() => {
-                  if (f === filter) return;
-                  setLoading(true);
-                  setFilter(f);
-                }}
-              >
-                {f === "all" ? "All" : "Projects"}
-              </Chip>
-            ))}
+          <div style={{ marginBottom: spacing.lg }}>
+            <Segmented
+              label="Show"
+              value={filter}
+              onChange={(f) => {
+                if (f === filter) return;
+                setLoading(true);
+                setFilter(f);
+              }}
+              options={[
+                { value: "all", label: "All" },
+                { value: "projects", label: "Projects" },
+              ]}
+            />
           </div>
 
           <ComposeBar onPosted={() => void loadFirstPage()} />
@@ -828,33 +827,31 @@ export default function Feed() {
           )}
 
           {loading ? (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: "64px 0",
-              }}
-            >
-              <Spinner />
-            </div>
-          ) : error ? (
+            <SkeletonRows rows={3} height={150} />          ) : error ? (
             <div style={{ padding: "32px 0" }}>
               <ErrorState message={error} onRetry={() => void retry()} retrying={retrying} />
             </div>
           ) : posts.length === 0 ? (
-            <Text
-              align="center"
-              tone="secondary"
-              style={{ display: "block", padding: "64px 0", maxWidth: 420, margin: "0 auto" }}
-            >
-              {allyCount === 0
-                ? "Your feed shows what you and your allies share. Ally someone from their profile and their work appears here."
-                : "Nothing shared yet. When you or your allies post, it shows up here."}
-            </Text>
+            allyCount === 0 ? (
+              <EmptyState
+                icon={<Users size={22} />}
+                title="No allies yet"
+                action={
+                  <Link to="/rooms" className="ui-press inline-flex h-9 items-center rounded-full border border-[var(--color-border-strong)] px-4 text-sm font-semibold text-[var(--color-text-primary)]">
+                    Find people in Rooms
+                  </Link>
+                }
+              />
+            ) : (
+              <EmptyState icon={<Sparkles size={22} />} title="Nothing shared yet" />
+            )
           ) : (
             <div>
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} myId={myId} />
+              {posts.map((post, i) => (
+                // New cards rise in; the first few are staggered.
+                <div key={post.id} className="ui-rise" style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}>
+                  <PostCard post={post} myId={myId} />
+                </div>
               ))}
 
               {loadingMore && (
