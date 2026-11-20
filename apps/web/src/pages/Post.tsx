@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useConfirm } from "@/lib/confirm";
 import { useNavigate, useParams, useLocation } from "react-router";
 import {
   ArrowLeft,
@@ -199,6 +200,7 @@ function CommentRow({
 export default function Post() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const location = useLocation();
   const { colors, spacing, radii } = useTokens();
   const { profile: myProfile } = useProfile();
@@ -350,13 +352,23 @@ export default function Post() {
   }
 
   async function deleteComment(id: string) {
-    if (!window.confirm("Delete this comment?")) return;
+    const ok = await confirm({
+      title: "Delete this comment?",
+      description: "This can't be undone.",
+      confirmLabel: "Delete comment",
+    });
+    if (!ok) return;
     await supabase.from("comments").delete().eq("id", id);
     await fetchAllRef.current?.();
   }
 
   async function deletePost() {
-    if (!window.confirm("Delete this post? This can't be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this post?",
+      description: "The post and its comments will be gone for good.",
+      confirmLabel: "Delete post",
+    });
+    if (!ok) return;
     await supabase.from("posts").delete().eq("id", postId);
     navigate(-1);
   }

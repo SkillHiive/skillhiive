@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { useTheme, type Theme } from "./themeContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/lib/confirm";
 
 const THEMES: { value: Theme; label: string; Icon: LucideIcon }[] = [
   { value: "system", label: "Auto", Icon: Monitor },
@@ -23,7 +24,16 @@ export default function AccountMenu({ active = false }: { active?: boolean }) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
+  const confirm = useConfirm();
+
   async function signOut() {
+    const ok = await confirm({
+      title: "Sign out?",
+      description: "You'll need to sign in again to get back in.",
+      confirmLabel: "Sign out",
+      tone: "neutral",
+    });
+    if (!ok) return;
     const { error } = await supabase.auth.signOut();
     // If the server can't be reached, still end the session on this device.
     if (error) await supabase.auth.signOut({ scope: "local" });

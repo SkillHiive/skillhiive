@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import {
-  ArrowLeft,
-  Check,
-  Keyboard,
-  Link2,
-  RefreshCw,
-  Trash2,
-  Unlock,
-} from "lucide-react";
+import { ArrowLeft, Check, Keyboard, RefreshCw, Trash2 } from "lucide-react";
 import SwipeLayout from "@/components/SwipeLayout";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
@@ -19,13 +11,10 @@ import {
   saveTrackerConnection,
   setMyCodingStatsVisibility,
   triggerSync,
-  fetchMyTrackerProjects,
-  fetchProjectMappings,
   type TrackerProvider,
-  type ProjectMapping,
 } from "@/lib/timeTracker";
-import { fetchMyProjects } from "@/lib/todayData";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/lib/confirm";
 import { CueCard } from "@/components/CodingTime/CueCard";
 
 const FONT =
@@ -40,19 +29,20 @@ const PROVIDERS: Array<{
   {
     id: "wakatime",
     label: "Wakatime",
-    hint: "wakatime.com",
+    hint: "wakatime.com/settings/api-key",
     keyUrl: "https://wakatime.com/settings/api-key",
   },
   {
     id: "hackatime",
     label: "Hackatime",
-    hint: "Hack Club's hosted tracker",
+    hint: "hackatime.hackclub.com",
     keyUrl: "https://hackatime.hackclub.com",
   },
 ];
 
 export default function SettingsTrackers() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const { colors, spacing, radii } = useTokens();
   const { connection, loading, refresh } = useTrackerConnection();
 
@@ -62,15 +52,6 @@ export default function SettingsTrackers() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [statsPublic, setStatsPublic] = useState<boolean | null>(null);
-  const [projectCount, setProjectCount] = useState(0);
-  const [mappings, setMappings] = useState<ProjectMapping[]>([]);
-
-  useEffect(() => {
-    void (async () => {
-      const projects = await fetchMyProjects();
-      setProjectCount(projects.length);
-    })();
-  }, [connection?.last_sync_at]);
 
   useEffect(() => {
     if (!connection) return;
@@ -84,35 +65,15 @@ export default function SettingsTrackers() {
     })();
   }, [connection]);
 
-  useEffect(() => {
-    if (!connection) {
-      setMappings([]);
-      return;
-    }
-    void (async () => {
-      await fetchMyTrackerProjects();
-      // Only fetch mappings for projects the user owns
-      const projectIds = (await fetchMyProjects()).map(p => p.id);
-      const allMappings: ProjectMapping[] = [];
-      for (const pid of projectIds) {
-        const pm = await fetchProjectMappings(pid);
-        allMappings.push(...pm);
-      }
-      setMappings(allMappings);
-    })();
-  }, [connection, refresh]);
-
   async function handleSave() {
     if (!apiKey.trim()) return;
     setSaving(true);
     setMessage(null);
-    console.log("[handleSave] Saving connection for provider:", provider);
     const result = await saveTrackerConnection(provider, apiKey);
-    console.log("[handleSave] Result:", result);
     setSaving(false);
     if (result.ok) {
       setApiKey("");
-      setMessage("Connected. Running first sync…");
+      setMessage("Connected. Importing your time…");
       await new Promise((r) => setTimeout(r, 500));
       refresh();
       await handleSync(true);
@@ -123,14 +84,10 @@ export default function SettingsTrackers() {
 
   async function handleSync(force = false) {
     setSyncing(true);
-    console.log("[handleSync] Starting sync, force:", force);
     const result = await triggerSync(force);
-    console.log("[handleSync] Result:", result);
     setSyncing(false);
     setMessage(
-      result.ok
-        ? "Sync complete — your coding time is up to date."
-        : `Sync failed: ${result.error ?? "is the API key valid?"}`,
+      result.ok ? "Up to date." : `Sync failed: ${result.error ?? "is the API key valid?"}`,
     );
     if (result.ok) {
       await new Promise((r) => setTimeout(r, 500));
@@ -139,10 +96,14 @@ export default function SettingsTrackers() {
   }
 
   async function handleDisconnect() {
+    const ok = await confirm({
+      title: `Disconnect ${providerLabel ?? "tracker"}?`,
+      description: "We'll stop importing from it. Time already imported stays.",
+      confirmLabel: "Disconnect",
+    });
+    if (!ok) return;
     setSyncing(true);
-    console.log("[handleDisconnect] Starting disconnect");
     const result = await deleteTrackerConnection();
-    console.log("[handleDisconnect] Result:", result);
     setSyncing(false);
     if (result.ok) {
       setMessage("Disconnected.");
@@ -152,6 +113,8 @@ export default function SettingsTrackers() {
       setMessage(`Could not disconnect: ${result.error ?? "unknown error"}`);
     }
   }
+
+  const providerLabel = PROVIDERS.find((p) => p.id === connection?.provider)?.label;
 
   return (
     <SwipeLayout>
@@ -166,12 +129,12 @@ export default function SettingsTrackers() {
       >
         <div
           style={{
-            maxWidth: 640,
+            maxWidth: 560,
             margin: "0 auto",
             padding: `0 ${spacing.base}px`,
             display: "flex",
             flexDirection: "column",
-            gap: spacing.lg,
+            gap: spacing.base,
           }}
         >
           <button
@@ -195,15 +158,9 @@ export default function SettingsTrackers() {
             Back
           </button>
 
-          <div>
-            <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
-              Coding time
-            </Text>
-            <Text variant="bodySm" tone="secondary">
-              Cue counts your coding time on your own computer. Wakatime and
-              Hackatime still work if you already use them.
-            </Text>
-          </div>
+          <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+            Coding time
+          </Text>
 
           <CueCard hasTracker={!!connection} onChanged={refresh} />
 
@@ -213,21 +170,25 @@ export default function SettingsTrackers() {
             </Text>
           ) : connection ? (
             <>
-              {/* Connected card */}
               <Card>
                 <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
                   <Keyboard size={18} color={colors.surface.skillhive} />
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <Text variant="title" weight={800}>
-                      {PROVIDERS.find((p) => p.id === connection.provider)?.label}
+                      {providerLabel}
                     </Text>
-                    <Text variant="caption" tone={connection.status === "error" ? "tint" : "tertiary"}
-                      style={connection.status === "error" ? { color: colors.tint.warning } : undefined}>
-                      {connection.status === "error"
-                        ? connection.last_error ?? "sync error"
-                        : connection.last_sync_at
-                          ? `last synced ${new Date(connection.last_sync_at).toLocaleString()}`
-                          : "never synced"}
+                    <Text
+                      variant="caption"
+                      tone="tertiary"
+                      style={connection.status === "error" ? { color: colors.tint.warning } : undefined}
+                    >
+                      {syncing
+                        ? "Syncing…"
+                        : connection.status === "error"
+                          ? connection.last_error ?? "Sync error"
+                          : connection.last_sync_at
+                            ? `Synced ${new Date(connection.last_sync_at).toLocaleString()}`
+                            : "Not synced yet"}
                     </Text>
                   </div>
                   <button
@@ -235,86 +196,31 @@ export default function SettingsTrackers() {
                     disabled={syncing}
                     style={iconBtn(colors, syncing)}
                     title="Sync now"
+                    aria-label="Sync now"
                   >
-                    {syncing ? (
-                      <RefreshCw size={15} style={{ animation: "spin 1s linear infinite" }} />
-                    ) : (
-                      <RefreshCw size={15} />
-                    )}
+                    <RefreshCw size={15} style={syncing ? { animation: "spin 1s linear infinite" } : undefined} />
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                   </button>
-                  <button onClick={handleDisconnect} disabled={syncing} style={iconBtn(colors)} title="Disconnect">
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={syncing}
+                    style={iconBtn(colors)}
+                    title="Disconnect"
+                    aria-label="Disconnect"
+                  >
                     <Trash2 size={15} />
                   </button>
                 </div>
-                {syncing && (
-                  <div style={{ marginTop: spacing.xs, display: "flex", alignItems: "center", gap: spacing.sm }}>
-                    <div
-                      style={{
-                        width: 16,
-                        height: 16,
-                        border: `2px solid ${colors.border.subtle}`,
-                        borderTopColor: colors.surface.skillhive,
-                        borderRadius: "50%",
-                        animation: "spin 0.8s linear infinite",
-                      }}
-                    />
-                    <Text variant="bodySm" tone="secondary">
-                      Syncing with {connection.provider === "wakatime" ? "Wakatime" : "Hackatime"}…
-                    </Text>
-                  </div>
-                )}
               </Card>
 
-              {mappings.length === 0 && connection && (
-                <Card style={{ border: `1px solid ${colors.surface.skillhive}55`, background: colors.bg.accentDim }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: spacing.sm }}>
-                    <Link2 size={18} color={colors.surface.skillhive} style={{ marginTop: 2, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Text variant="bodySm" weight={700} style={{ color: colors.surface.skillhive }}>
-                        No projects linked yet
-                      </Text>
-                      <Text variant="caption" tone="secondary" style={{ display: "block", marginTop: 2 }}>
-                        Your tracker has coding time that isn't attached to a project yet. On
-                        Today, open a project and choose “Link projects”. The time then
-                        comes in by itself.
-                      </Text>
-                    </div>
-                    <button
-                      onClick={() => navigate("/home")}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: radii.pill,
-                        border: `1px solid ${colors.surface.skillhive}`,
-                        background: colors.bg.accentDim,
-                        color: colors.text.skillhive,
-                        fontSize: 13,
-                        fontWeight: 800,
-                        fontFamily: "inherit",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                      }}
-                    >
-                      Go to Today
-                    </button>
-                  </div>
-                </Card>
-              )}
-
-              {/* Profile visibility */}
               <Card>
                 <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-                  <Unlock
-                    size={16}
-                    color={statsPublic ? colors.tint.success : colors.text.tertiary}
-                  />
                   <div style={{ flex: 1 }}>
                     <Text variant="bodySm" weight={700} style={{ display: "block" }}>
-                      Show coding time on my public profile
+                      Show coding time on my profile
                     </Text>
                     <Text variant="caption" tone="tertiary">
-                      Off by default. Per-project visibility is managed on each project page.
+                      Projects have their own switch.
                     </Text>
                   </div>
                   <Toggle
@@ -326,63 +232,51 @@ export default function SettingsTrackers() {
                   />
                 </div>
               </Card>
-
-              {/* Mappings overview */}
-              <Card>
-                <Text variant="label" tone="secondary" style={{ display: "block", marginBottom: spacing.sm }}>
-                  Linked projects
-                </Text>
-                <Text variant="bodySm" tone="tertiary">
-                  Coding time is linked per project. Open one of your{" "}
-                  {projectCount} project{projectCount === 1 ? "" : "s"} on Today
-                  and choose “Link projects” to attach its tracked time.
-                </Text>
-              </Card>
             </>
           ) : (
-            <>
-              {/* Connect flow */}
-              <Card>
-                <Text variant="label" tone="secondary" style={{ display: "block", marginBottom: spacing.sm }}>
-                  Choose provider
-                </Text>
-                <div style={{ display: "flex", gap: spacing.sm }}>
+            <details
+              style={{
+                background: colors.surface.primary,
+                border: `1px solid ${colors.border.subtle}`,
+                borderRadius: radii.lg,
+                padding: spacing.base,
+              }}
+            >
+              <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14, color: colors.text.primary }}>
+                Already use Wakatime or Hackatime? Import it
+              </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm, marginTop: spacing.base }}>
+                <div role="radiogroup" aria-label="Provider" style={{ display: "flex", gap: spacing.sm }}>
                   {PROVIDERS.map((p) => (
                     <button
                       key={p.id}
+                      role="radio"
+                      aria-checked={provider === p.id}
                       onClick={() => setProvider(p.id)}
                       style={{
                         flex: 1,
-                        padding: spacing.base,
+                        padding: "10px 12px",
                         borderRadius: radii.lg,
                         border: `1.5px solid ${
                           provider === p.id ? colors.surface.skillhive : colors.border.subtle
                         }`,
                         background: provider === p.id ? colors.bg.accentDim : "transparent",
+                        color: colors.text.primary,
                         cursor: "pointer",
-                        textAlign: "left",
                         fontFamily: "inherit",
+                        fontSize: 14,
+                        fontWeight: 700,
                       }}
                     >
-                      <Text variant="title" weight={800} style={{ display: "block" }}>
-                        {p.label}
-                      </Text>
-                      <Text variant="caption" tone="tertiary">
-                        {p.hint}
-                      </Text>
+                      {p.label}
                     </button>
                   ))}
                 </div>
-              </Card>
-
-              <Card>
-                <Text variant="label" tone="secondary" style={{ display: "block", marginBottom: spacing.sm }}>
-                  API key
-                </Text>
                 <input
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste your secret API key"
+                  placeholder="API key"
+                  aria-label="API key"
                   type="password"
                   autoComplete="off"
                   style={{
@@ -398,26 +292,23 @@ export default function SettingsTrackers() {
                     boxSizing: "border-box",
                   }}
                 />
-                <Text variant="caption" tone="tertiary" style={{ display: "block", marginTop: spacing.sm }}>
-                  Find it at{" "}
+                <Text variant="caption" tone="tertiary">
+                  Key from{" "}
                   <a
                     href={PROVIDERS.find((p) => p.id === provider)?.keyUrl}
                     target="_blank"
                     rel="noreferrer"
                     style={{ color: colors.surface.skillhive }}
                   >
-                    {provider === "wakatime"
-                      ? "wakatime.com/settings/api-key"
-                      : "hackatime.hackclub.com"}
+                    {PROVIDERS.find((p) => p.id === provider)?.hint}
                   </a>
-                  . We only read project names and totals — never keystrokes or
-                  file contents.
+                  .
                 </Text>
                 <button
                   onClick={handleSave}
                   disabled={saving || !apiKey.trim()}
                   style={{
-                    marginTop: spacing.base,
+                    alignSelf: "flex-start",
                     padding: "9px 20px",
                     borderRadius: radii.pill,
                     border: "none",
@@ -432,12 +323,12 @@ export default function SettingsTrackers() {
                 >
                   {saving ? "Connecting…" : "Connect"}
                 </button>
-              </Card>
-            </>
+              </div>
+            </details>
           )}
 
           {message && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Check size={14} color={colors.tint.success} />
               <Text variant="bodySm" tone="secondary">
                 {message}

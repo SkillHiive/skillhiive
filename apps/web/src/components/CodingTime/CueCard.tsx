@@ -1,18 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Laptop, Trash2 } from "lucide-react";
+import { useConfirm } from "@/lib/confirm";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
-import { formatDuration } from "@/lib/timeTracker";
+import { timeAgo } from "@/lib/timeAgo";
 import {
-  fetchCodingTimeComparison,
   fetchCodingTimeSource,
   fetchMyCueDevices,
   revokeCueDevice,
   setCodingTimeSource,
-  summarizeComparison,
   type CodingTimeSource,
-  type ComparisonDay,
   type CueDevice,
   type CueResult,
 } from "@/lib/cue";
@@ -30,9 +28,8 @@ export function CueCard({ hasTracker, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [devices, setDevices] = useState<CueDevice[]>([]);
   const [source, setSource] = useState<CodingTimeSource>("tracker");
-  const [comparison, setComparison] = useState<ComparisonDay[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const [reloads, setReloads] = useState(0);
 
@@ -41,12 +38,10 @@ export function CueCard({ hasTracker, onChanged }: Props) {
     void Promise.all([
       fetchMyCueDevices(),
       fetchCodingTimeSource(),
-      fetchCodingTimeComparison(7),
-    ]).then(([nextDevices, nextSource, nextComparison]) => {
+    ]).then(([nextDevices, nextSource]) => {
       if (!active) return;
       setDevices(nextDevices);
       setSource(nextSource);
-      setComparison(nextComparison);
       setLoading(false);
     });
     return () => {
@@ -55,7 +50,6 @@ export function CueCard({ hasTracker, onChanged }: Props) {
   }, [reloads]);
 
   const active = devices.filter((device) => device.revoked_at === null);
-  const summary = summarizeComparison(comparison);
 
   async function after(pending: Promise<CueResult>, done: string) {
     const result = await pending;
@@ -66,8 +60,15 @@ export function CueCard({ hasTracker, onChanged }: Props) {
     }
   }
 
-  async function remove(device: CueDevice, deleteData: boolean) {
-    setConfirming(null);
+  async function remove(device: CueDevice) {
+    const answer = await confirm({
+      title: "Remove this device?",
+      description: "It stops syncing. Past time stays unless you tick the box.",
+      confirmLabel: "Remove",
+      option: { label: "Also delete everything it sent" },
+    });
+    if (!answer) return;
+    const deleteData = answer.checked;
     await after(
       revokeCueDevice(device.id, deleteData),
       deleteData ? "Device and everything it sent were deleted." : "Device removed. Its history was kept.",
@@ -95,64 +96,71 @@ export function CueCard({ hasTracker, onChanged }: Props) {
     cursor: "pointer",
   };
 
+  const iconButton: React.CSSProperties = {
+    ...quiet,
+    padding: 7,
+    display: "inline-flex",
+    alignItems: "center",
+    flexShrink: 0,
+  };
+
+  const block: React.CSSProperties = { display: "block" };
+
   return (
-    <section style={card} aria-label="Cue">
+    <section style={{ ...card, gap: spacing.base }} aria-label="Cue">
       <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
         <Laptop size={18} color={colors.surface.skillhive} />
-        <div style={{ flex: 1 }}>
-          <Text variant="title" weight={800}>Cue</Text>
-          <Text variant="caption" tone="tertiary">
-            Tracks time on your own computer, including work done with coding agents. No editor plugin or API key.
-          </Text>
-        </div>
+        <Text variant="title" weight={800}>Cue</Text>
       </div>
 
       {loading ? (
         <Text variant="bodySm" tone="tertiary">Loading…</Text>
       ) : active.length === 0 ? (
         <Text variant="bodySm" tone="secondary">
-          Install Cue on your computer, then run <code>cue login</code>. It prints a code and a link back to this
-          site; approve it and your daily totals start arriving. Run <code>cue sync --dry-run</code> any time to
-          see exactly what would be sent.
+          Install Cue on your computer, then run <code>cue login</code> and approve the link it prints.
         </Text>
       ) : (
         <>
-          <Text variant="label" tone="secondary">Linked devices</Text>
-          {active.map((device) => (
-            <div key={device.id} style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <Text variant="bodySm" weight={700}>{device.name}</Text>
-                <Text variant="caption" tone="tertiary">
-                  {device.platform} ·{" "}
-                  {device.last_seen_at ? `last sync ${new Date(device.last_seen_at).toLocaleString()}` : "no sync yet"}
-                </Text>
-              </div>
-              {confirming === device.id ? (
-                <>
-                  <button style={quiet} onClick={() => void remove(device, false)}>
-                    Remove, keep history
-                  </button>
-                  <button style={{ ...quiet, color: colors.tint.warning }} onClick={() => void remove(device, true)}>
-                    Remove and delete its data
-                  </button>
-                  <button style={quiet} onClick={() => setConfirming(null)}>Cancel</button>
-                </>
-              ) : (
-                <button style={quiet} onClick={() => setConfirming(device.id)} aria-label={`Remove ${device.name}`}>
-                  <Trash2 size={13} style={{ verticalAlign: -2 }} /> Remove
+          <div>
+            <Text variant="label" tone="secondary" style={{ ...block, marginBottom: spacing.xs }}>Devices</Text>
+            {active.map((device) => (
+              <div
+                key={device.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                  padding: `${spacing.sm}px 0`,
+                  borderTop: `1px solid ${colors.border.subtle}`,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    variant="bodySm"
+                    weight={700}
+                    style={{ ...block, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    <span title={device.name}>{device.name}</span>
+                  </Text>
+                  <Text variant="caption" tone="tertiary" style={block}>
+                    {device.last_seen_at ? `Synced ${timeAgo(device.last_seen_at)}` : "No sync yet"}
+                  </Text>
+                </div>
+                <button
+                  style={iconButton}
+                  onClick={() => void remove(device)}
+                  aria-label={`Remove ${device.name}`}
+                  title="Remove device"
+                >
+                  <Trash2 size={15} />
                 </button>
-              )}
-            </div>
-          ))}
-
-          <Text variant="caption" tone="secondary" style={{ marginTop: spacing.sm }}>
-            Your projects from Cue are on <Link to="/home">Today</Link>, under Projects. Only you see them
-            until you make one public. <code>cue projects</code> on your computer shows which ones it keeps to itself.
-          </Text>
+              </div>
+            ))}
+          </div>
 
           {hasTracker && (
-            <>
-              <Text variant="label" tone="secondary" style={{ marginTop: spacing.sm }}>Time shown on your profile</Text>
+            <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
+              <Text variant="label" tone="secondary">Time shown on your profile</Text>
               <div role="radiogroup" aria-label="Time shown on your profile" style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
                 {(["tracker", "cue"] as const).map((option) => (
                   <button
@@ -170,17 +178,15 @@ export function CueCard({ hasTracker, onChanged }: Props) {
                   </button>
                 ))}
               </div>
-              <Text variant="caption" tone="secondary">
-                Switching to Cue keeps your earlier history; days from your first Cue day on come from Cue only.
+              <Text variant="caption" tone="tertiary">
+                Switching to Cue keeps your earlier history.
               </Text>
-              <Text variant="caption" tone="secondary">
-                Last 7 days: Cue {formatDuration(summary.cueTotal)}, tracker {formatDuration(summary.trackerTotal)}.
-                {summary.comparableDays > 0
-                  ? ` They agree within 10% on ${summary.closeDays} of the ${summary.comparableDays} days both counted.`
-                  : " They haven't both counted the same day yet, so there's nothing to compare."}
-              </Text>
-            </>
+            </div>
           )}
+
+          <Text variant="caption" tone="tertiary">
+            Your Cue projects are on <Link to="/home" style={{ color: colors.text.skillhive }}>Today</Link>.
+          </Text>
         </>
       )}
 
