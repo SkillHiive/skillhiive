@@ -30,6 +30,15 @@ import {
   type Project,
 } from "@/lib/todayData";
 import {
+  IDLE_CLOCK,
+  elapsedSec,
+  isRunning,
+  pauseClock,
+  sessionSeconds,
+  startClock,
+  type FocusClock,
+} from "@/lib/focusClock";
+import {
   Play,
   Pause,
   RotateCcw,
@@ -473,7 +482,7 @@ export default function Home() {
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("online", onOnline);
-      window.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -853,8 +862,9 @@ function FocusView({
   const { colors, spacing, radii } = useTokens();
   const { kind: ambience, setAmbience } = useAmbience();
 
-  const [running, setRunning] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [clock, setClock] = useState<FocusClock>(IDLE_CLOCK);
+  const [now, setNow] = useState(() => Date.now());
+  const running = isRunning(clock);
   const [dnd, setDnd] = useState(false);
   const [constraintsOpen, setConstraintsOpen] = useState(false);
   const [constraints, setConstraints] = useState({
@@ -887,11 +897,29 @@ function FocusView({
     };
   }, []);
 
+  // Ticks only trigger a re-render; the time itself comes from timestamps, so
+  // throttled timers in a background tab cannot make the session under-count.
   useEffect(() => {
     if (!running) return;
-    const iv = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(iv);
+    const tick = () => setNow(Date.now());
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    const iv = setInterval(tick, 500);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [running]);
+
+  const elapsed = elapsedSec(clock, now);
+
+  function toggleRunning() {
+    const t = Date.now();
+    setNow(t);
+    setClock((c) => (isRunning(c) ? pauseClock(c, t) : startClock(c, t)));
+  }
 
   const pos = elapsed % CYCLE_SEC;
   const phase = pos < FOCUS_SEC ? "focus" : "break";
@@ -927,12 +955,15 @@ function FocusView({
       ? await ensureProject(capture.projectName.trim())
       : null;
 
-    void saveSession({
-      task_text: capture.task.text,
-      estimate_min: capture.task.estimateMin,
-      duration_seconds: Math.max(1, capture.actualMin) * 60,
-      project_id: projectId,
-    });
+    const seconds = sessionSeconds(capture.actualMin);
+    if (seconds !== null) {
+      void saveSession({
+        task_text: capture.task.text,
+        estimate_min: capture.task.estimateMin,
+        duration_seconds: seconds,
+        project_id: projectId,
+      });
+    }
     void saveNote({
       ritual_type: "checkout",
       body: capture.shipped.trim() || capture.task.text,
@@ -943,7 +974,8 @@ function FocusView({
 
     setCapture(null);
     if (breakAfter) {
-      setRunning(false);
+      const t = Date.now();
+      setClock((c) => pauseClock(c, t));
       onExit();
     } else {
       setHeroStart(elapsed);
@@ -1085,7 +1117,7 @@ function FocusView({
                     label={running ? "Pause" : "Start"}
                     size="lg"
                     icon={running ? <Pause size={18} /> : <Play size={18} />}
-                    onClick={() => setRunning((r) => !r)}
+                    onClick={toggleRunning}
                   />
                   <Button
                     label="Reset"
@@ -1093,9 +1125,8 @@ function FocusView({
                     variant="secondary"
                     icon={<RotateCcw size={16} />}
                     onClick={() => {
-                      setElapsed(0);
+                      setClock(IDLE_CLOCK);
                       setHeroStart(0);
-                      setRunning(false);
                     }}
                   />
                 </div>
@@ -1395,6 +1426,15 @@ function TaskRow({
   );
 }
 
+// Autofocus only where it cannot pop up an on-screen keyboard (mouse/trackpad).
+function hasFinePointer(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: fine)").matches
+  );
+}
+
 function NewTaskRow({
   onCommit,
 }: {
@@ -1431,7 +1471,7 @@ function NewTaskRow({
       <Plus size={16} color={colors.text.tertiary} />
       <input
         ref={ref}
-        autoFocus
+        autoFocus={hasFinePointer()}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
