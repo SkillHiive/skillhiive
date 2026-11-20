@@ -1,11 +1,12 @@
-import { lazy, Suspense } from "react";
-import { Routes, Route, useNavigate, useParams, Navigate } from "react-router";
+import { lazy, Suspense, useEffect } from "react";
+import { Routes, Route, useNavigate, useParams, Navigate, useLocation, useNavigationType } from "react-router";
 import "./Layout.css";
 import Nav from "./components/Nav";
 import PageFallback from "./components/PageFallback";
 import { AuthGate } from "./components/AuthGate";
 import { ProfileProvider } from "./hooks/profileContext";
 import ConfirmProvider from "./components/ConfirmProvider";
+import ToastProvider from "./components/ToastProvider";
 import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
 import SEO from "./components/SEO";
@@ -31,11 +32,24 @@ const Terms = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Terms
 const Privacy = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Privacy })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+/** New pages open at the top; Back and Forward leave the browser to restore the position. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const type = useNavigationType();
+  useEffect(() => {
+    if (type !== "POP") window.scrollTo(0, 0);
+  }, [pathname, type]);
+  return null;
+}
+
 function AppRoutes() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   return (
     <Suspense fallback={<PageFallback />}>
+      {/* Every page fades in the same way (index.css .ui-page). */}
+      <div key={pathname} className="ui-page">
       <Routes>
         <Route
           path="/"
@@ -190,6 +204,7 @@ function AppRoutes() {
         <Route path="/privacy" element={<><SEO /><Privacy /></>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </div>
     </Suspense>
   );
 }
@@ -198,8 +213,11 @@ export default function App() {
   return (
     <ProfileProvider>
       <ConfirmProvider>
-        <Nav />
-        <AppRoutes />
+        <ToastProvider>
+          <ScrollToTop />
+          <Nav />
+          <AppRoutes />
+        </ToastProvider>
       </ConfirmProvider>
     </ProfileProvider>
   );
