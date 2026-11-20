@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { loadErrorMessage, withTimeout } from "@/lib/load";
 import { useAuth } from "./useAuth";
 
 export type AllyRequest = {
@@ -28,11 +29,15 @@ const ALLY_QUERY = `
   )
 `;
 
+const REFRESH_MS = 30_000;
+
 /**
- * Notifications = incoming alliance requests (pending) + recently accepted
- * allies, mirroring the mobile notifications screen. Self-contained: resolves
- * the current user from the session so it can be used both inside the app
- * (page) and in the top-bar bell (outside the ProfileProvider).
+ * Notifications = ally requests waiting for you, plus the people who recently became
+ * your allies. Reads the user from the session, so it works both in the top-bar bell
+ * and on the notifications page.
+ *
+ * `loading` is true only until the first answer arrives: the 30-second background
+ * refresh never flashes a spinner, and a failed refresh keeps what is on screen.
  */
 export function useNotifications() {
   const session = useAuth();
@@ -40,40 +45,36 @@ export function useNotifications() {
 
   const [requests, setRequests] = useState<AllyRequest[]>([]);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
-
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("allies")
-      .select(ALLY_QUERY)
-      .eq("receiver_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setRequests(data as unknown as AllyRequest[]);
+    if (!userId) return;
+    try {
+      const { data, error: queryError } = await withTimeout(
+        supabase
+          .from("allies")
+          .select(ALLY_QUERY)
+          .eq("receiver_id", userId)
+          .order("created_at", { ascending: false }),
+      );
+      if (queryError) throw queryError;
+      setRequests((data ?? []) as unknown as AllyRequest[]);
       setLoadedUserId(userId);
+      setError(null);
+    } catch (e) {
+      setError(loadErrorMessage(e, "your notifications"));
     }
-
-    setLoading(false);
   }, [userId]);
 
   useEffect(() => {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
     void fetchRequests();
-
     const poll = setInterval(() => {
-      void fetchRequests();
-    }, 30000);
+      if (document.visibilityState === "visible") void fetchRequests();
+    }, REFRESH_MS);
 
     function onVisible() {
       if (document.visibilityState === "visible") void fetchRequests();
@@ -86,43 +87,37 @@ export function useNotifications() {
     };
   }, [userId, fetchRequests]);
 
-  const accept = useCallback(
-    async (req: AllyRequest) => {
-      setActing(req.id);
-
-      await supabase
-        .from("allies")
-        .update({ status: "accepted" })
-        .eq("id", req.id);
-
-      await fetchRequests();
-
-      setActing(null);
-    },
-    [fetchRequests],
-  );
-
-  const decline = useCallback(async (req: AllyRequest) => {
+  const accept = useCallback(async (req: AllyRequest) => {
     setActing(req.id);
-
-    await supabase.from("allies").delete().eq("id", req.id);
-
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-
+    setActionError(null);
+    const { error: updateError } = await supabase
+      .from("allies")
+      .update({ status: "accepted" })
+      .eq("id", req.id);
+    if (updateError) {
+      setActionError("Couldn't accept that request. Try again.");
+    } else {
+      setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, status: "accepted" } : r)));
+    }
     setActing(null);
   }, []);
 
-  const visibleRequests = useMemo(() => {
-    if (!userId) {
-      return [];
+  const decline = useCallback(async (req: AllyRequest) => {
+    setActing(req.id);
+    setActionError(null);
+    const { error: deleteError } = await supabase.from("allies").delete().eq("id", req.id);
+    if (deleteError) {
+      setActionError("Couldn't decline that request. Try again.");
+    } else {
+      setRequests((prev) => prev.filter((r) => r.id !== req.id));
     }
+    setActing(null);
+  }, []);
 
-    if (loadedUserId !== userId) {
-      return [];
-    }
-
-    return requests;
-  }, [userId, loadedUserId, requests]);
+  const visibleRequests = useMemo(
+    () => (userId && loadedUserId === userId ? requests : []),
+    [userId, loadedUserId, requests],
+  );
 
   const pending = useMemo(
     () => visibleRequests.filter((r) => r.status === "pending"),
@@ -134,12 +129,17 @@ export function useNotifications() {
     [visibleRequests],
   );
 
+  const loadedOnce = !!userId && loadedUserId === userId;
+
   return {
     requests: visibleRequests,
     pending,
     accepted,
     pendingCount: pending.length,
-    loading: userId ? loading : false,
+    loading: !!userId && !loadedOnce && !error,
+    // Only an error with nothing to show: a failed refresh keeps the old list.
+    error: loadedOnce ? null : error,
+    actionError,
     acting,
     accept,
     decline,

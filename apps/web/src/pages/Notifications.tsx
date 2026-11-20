@@ -9,7 +9,7 @@ const FONT =
 
 export default function Notifications() {
   const { colors, spacing } = useTokens();
-  const { pending, accepted, loading, acting, accept, decline, pendingCount } =
+  const { pending, accepted, loading, error, actionError, acting, accept, decline, refresh, pendingCount } =
     useNotifications();
 
   return (
@@ -49,11 +49,11 @@ export default function Notifications() {
                 textTransform: "uppercase",
               }}
             >
-              {loading
-                ? "…"
+              {loading || error
+                ? ""
                 : pendingCount > 0
-                  ? `${pendingCount} pending`
-                  : "all clear"}
+                  ? `${pendingCount} waiting for you`
+                  : "All caught up"}
             </Text>
           </div>
 
@@ -61,9 +61,12 @@ export default function Notifications() {
             pending={pending}
             accepted={accepted}
             loading={loading}
+            error={error}
+            actionError={actionError}
             acting={acting}
             accept={accept}
             decline={decline}
+            onRetry={() => void refresh()}
           />
         </main>
       </div>

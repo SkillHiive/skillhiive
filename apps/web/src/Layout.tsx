@@ -5,6 +5,7 @@ import Nav from "./components/Nav";
 import PageFallback from "./components/PageFallback";
 import { AuthGate } from "./components/AuthGate";
 import { ProfileProvider } from "./hooks/profileContext";
+import ConfirmProvider from "./components/ConfirmProvider";
 import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
 import SEO from "./components/SEO";
@@ -196,8 +197,10 @@ function AppRoutes() {
 export default function App() {
   return (
     <ProfileProvider>
-      <Nav />
-      <AppRoutes />
+      <ConfirmProvider>
+        <Nav />
+        <AppRoutes />
+      </ConfirmProvider>
     </ProfileProvider>
   );
 }

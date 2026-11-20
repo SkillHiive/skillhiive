@@ -184,6 +184,23 @@ html.custom-cursor * {
   background-color: var(--color-tint-primary);
 }
 
+.nav-block {
+  @apply mx-1 rounded-2xl backdrop-blur-sm;
+  border-width: 0.5px;
+  border-style: solid;
+  background-color: rgba(255, 255, 255, 0.62);
+  border-color: rgba(15, 15, 18, 0.12);
+}
+
+.dark .nav-block {
+  background-color: rgba(12, 15, 20, 0.13);
+  border-color: var(--color-border-default);
+}
+
+.nav-link {
+  user-select: none;
+}
+
 html.light body {
   background-color: var(--color-bg-canvas);
 }
