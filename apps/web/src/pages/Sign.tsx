@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Eye, EyeOff } from "lucide-react";
 import still from "@/assets/sign-still.webp";
-import { safeNext } from "@/lib/returnTo";
+import { safeNext, withNext } from "@/lib/returnTo";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage } from "@/lib/authMessages";
 
@@ -158,7 +158,7 @@ export default function Sign() {
 
             <p className="mt-5 text-sm text-white/75">
               New here?{" "}
-              <Link to="/register" className="font-semibold text-white underline-offset-4 hover:underline">
+              <Link to={withNext("/register", safeNext(location.search))} className="font-semibold text-white underline-offset-4 hover:underline">
                 Create an account
               </Link>
             </p>

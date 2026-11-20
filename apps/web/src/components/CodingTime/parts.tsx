@@ -105,5 +105,5 @@ export function MiniHeatmap({ daily }: { daily: TrackerDayStat[] }) {
     sessions: 1,
   }));
   if (data.length === 0) return null;
-  return <Heatmap data={data} weeks={12} cellSize={9} gap={2} />;
+  return <Heatmap data={data} weeks={12} cellSize={9} gap={2} unitLabel="coding" />;
 }

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 import {
   ChevronRight,
   Mail,
@@ -7,10 +6,10 @@ import {
   Type,
   Edit3,
   X,
-  ArrowLeft,
 } from "lucide-react";
 import SwipeLayout from "@/components/SwipeLayout";
-import { IconButton, Text } from "@skillhiive/ui";
+import { Text } from "@skillhiive/ui";
+import { BackLink } from "@/components/ui/BackLink";
 import { useProfile, type Profile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
 
@@ -29,13 +28,13 @@ interface FieldItem {
 }
 
 export default function SettingsProfile() {
-  const navigate = useNavigate();
   const { colors, spacing, radii } = useTokens();
   const { profile, loading, error, updateField } = useProfile();
 
   const [editing, setEditing] = useState<FieldItem | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const items: FieldItem[] = [
@@ -72,6 +71,7 @@ export default function SettingsProfile() {
 
   function openEditor(item: FieldItem) {
     if (!item.editable) return;
+    setSaveError(null);
     setEditing(item);
     setInputValue(
       item.value === "Not set" || item.value === "No bio yet" ? "" : item.value,
@@ -85,9 +85,11 @@ export default function SettingsProfile() {
   async function handleSave() {
     if (!editing || editing.key === "email") return;
     setSaving(true);
-    const ok = await updateField(editing.key, inputValue.trim());
+    setSaveError(null);
+    const result = await updateField(editing.key, inputValue.trim());
     setSaving(false);
-    if (ok) setEditing(null);
+    if (result.ok) setEditing(null);
+    else setSaveError(result.error);
   }
 
   return (
@@ -112,18 +114,16 @@ export default function SettingsProfile() {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: spacing.sm,
               margin: `${spacing.sm}px 0 ${spacing.xl}px`,
             }}
           >
-            <IconButton variant="primary" onClick={() => navigate(-1)} aria-label="Back">
-              <ArrowLeft size={22} strokeWidth={2} />
-            </IconButton>
-            <Text variant="subtitle" weight={800}>
-              Profile Edit
+            <BackLink to="/profile" label="Profile" />
+            <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+              Edit profile
             </Text>
-            <div style={{ width: 40 }} />
           </div>
 
           {loading && (
@@ -284,7 +284,10 @@ export default function SettingsProfile() {
             <textarea
               ref={inputRef}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setSaveError(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !editing.multiline) {
                   e.preventDefault();
@@ -293,10 +296,13 @@ export default function SettingsProfile() {
               }}
               rows={editing.multiline ? 4 : 1}
               placeholder={`Enter ${editing.label.toLowerCase()}…`}
+              aria-label={editing.label}
+              aria-invalid={saveError ? true : undefined}
+              aria-describedby={saveError ? "profile-save-error" : undefined}
               style={{
                 width: "100%",
                 background: colors.surface.secondary,
-                border: `1px solid ${colors.border.subtle}`,
+                border: `1px solid ${saveError ? colors.tint.danger : colors.border.subtle}`,
                 borderRadius: radii.lg,
                 padding: "12px 14px",
                 fontSize: 15,
@@ -308,6 +314,17 @@ export default function SettingsProfile() {
                 lineHeight: 1.5,
               }}
             />
+
+            {saveError && (
+              <Text
+                id="profile-save-error"
+                variant="bodySm"
+                role="alert"
+                style={{ display: "block", marginTop: spacing.sm, color: colors.tint.danger }}
+              >
+                {saveError}
+              </Text>
+            )}
 
             <div
               style={{

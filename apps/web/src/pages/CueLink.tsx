@@ -4,10 +4,10 @@ import { Check, Laptop } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { useAuth } from "@/hooks/useAuth";
-import { loginUrlFor } from "@/lib/returnTo";
-import { approveCueLink, normalizeLinkCode, peekCueLink, type CueLinkPreview } from "@/lib/cue";
+import { loginUrlFor, registerUrlFor } from "@/lib/returnTo";
+import { approveCueLink, CUE_UNREACHABLE, normalizeLinkCode, peekCueLink, type CueLinkPreview } from "@/lib/cue";
 
-type Stage = "enter" | "checking" | "confirm" | "approving" | "done" | "gone";
+type Stage = "enter" | "checking" | "confirm" | "approving" | "done" | "gone" | "unreachable";
 
 /** /link?code=ABCD-2345 — approve the device that printed this code in the terminal. */
 export default function CueLink() {
@@ -21,19 +21,32 @@ export default function CueLink() {
   const [stage, setStage] = useState<Stage>(fromUrl ? "checking" : "enter");
   const [device, setDevice] = useState<CueLinkPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!session || !code) return;
     let active = true;
-    void peekCueLink(code).then((preview) => {
+    void peekCueLink(code).then((result) => {
       if (!active) return;
-      setDevice(preview);
-      setStage(preview ? "confirm" : "gone");
+      if (!result.ok) {
+        setLookupError(result.error);
+        setStage("unreachable");
+        return;
+      }
+      setDevice(result.preview);
+      setStage(result.preview ? "confirm" : "gone");
     });
     return () => {
       active = false;
     };
-  }, [session, code]);
+  }, [session, code, attempt]);
+
+  function retry() {
+    setLookupError(null);
+    setStage("checking");
+    setAttempt((count) => count + 1);
+  }
 
   async function approve() {
     if (!code) return;
@@ -76,12 +89,21 @@ export default function CueLink() {
   if (session === undefined) {
     body = <Text variant="bodySm" tone="tertiary">Loading…</Text>;
   } else if (session === null) {
+    const here = location.pathname + location.search;
     body = (
       <>
         <Text variant="bodySm" tone="secondary">
-          Sign in to SkillHiive and you will come straight back here to finish linking your computer.
+          Sign in or create an account. You'll come straight back here to finish linking.
         </Text>
-        <Link to={loginUrlFor(location.pathname + location.search)} style={{ ...button, textDecoration: "none", width: "fit-content" }}>Sign in</Link>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
+          <Link to={loginUrlFor(here)} style={{ ...button, textDecoration: "none" }}>Sign in</Link>
+          <Link
+            to={registerUrlFor(here)}
+            style={{ ...button, background: "transparent", color: colors.text.primary, border: `1px solid ${colors.border.subtle}`, textDecoration: "none" }}
+          >
+            Create account
+          </Link>
+        </div>
       </>
     );
   } else if (stage === "done") {
@@ -104,6 +126,13 @@ export default function CueLink() {
         <Text variant="bodySm" tone="secondary">
           Codes last ten minutes and work once. Run <code>cue login</code> again to get a new one.
         </Text>
+      </>
+    );
+  } else if (stage === "unreachable") {
+    body = (
+      <>
+        <Text variant="title" weight={800}>{lookupError ?? CUE_UNREACHABLE}</Text>
+        <button onClick={retry} style={{ ...button, width: "fit-content" }}>Retry</button>
       </>
     );
   } else if ((stage === "confirm" || stage === "approving") && device) {

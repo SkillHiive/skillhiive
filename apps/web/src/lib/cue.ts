@@ -137,19 +137,39 @@ async function call(name: string, args?: Record<string, unknown>): Promise<CueRe
   }
 }
 
-/** The device waiting behind a code, or null when the code is unknown, used or expired. */
-export async function peekCueLink(code: string): Promise<CueLinkPreview | null> {
+/**
+ * The device waiting behind a code. `preview` is null when the server does not know the code
+ * (unknown, used or expired); `ok: false` means the server could not be asked, so try again.
+ */
+export type CueLinkPeek = { ok: true; preview: CueLinkPreview | null } | { ok: false; error: string };
+
+export const CUE_UNREACHABLE = "Couldn't reach SkillHiive";
+
+/** A failed lookup in words: the known server answers keep their meaning, anything else is "unreachable". */
+function peekErrorMessage(message: string | undefined, code?: string): string {
+  const text = message ?? "";
+  if (code === "PGRST202" || /could not find the function|not_authenticated/i.test(text)) {
+    return cueErrorMessage(text, code);
+  }
+  return CUE_UNREACHABLE;
+}
+
+export async function peekCueLink(code: string): Promise<CueLinkPeek> {
   try {
     const { data, error } = await supabase.rpc("peek_cue_link", { p_code: code });
+    if (error) return { ok: false, error: peekErrorMessage(error.message, error.code) };
     const first = rows(data)[0];
-    if (error || !first) return null;
+    if (!first) return { ok: true, preview: null };
     return {
-      device_name: String(first["device_name"] ?? ""),
-      platform: String(first["platform"] ?? ""),
-      expires_at: String(first["expires_at"] ?? ""),
+      ok: true,
+      preview: {
+        device_name: String(first["device_name"] ?? ""),
+        platform: String(first["platform"] ?? ""),
+        expires_at: String(first["expires_at"] ?? ""),
+      },
     };
-  } catch {
-    return null;
+  } catch (e) {
+    return { ok: false, error: peekErrorMessage(e instanceof Error ? e.message : undefined) };
   }
 }
 

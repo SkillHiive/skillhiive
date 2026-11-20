@@ -9,6 +9,8 @@ export interface HeatmapProps {
   cellSize?: number;
   gap?: number;
   onDayClick?: (day: string) => void;
+  /** What the minutes in the tooltip are, e.g. "Nm focus" or "Nm coding". */
+  unitLabel?: string;
 }
 
 function toKey(d: Date): string {
@@ -19,7 +21,7 @@ function toKey(d: Date): string {
 }
 
 /**
- * GitHub-style contribution heatmap, driven by per-day focus minutes.
+ * GitHub-style contribution heatmap, driven by per-day minutes (focus by default).
  * Columns are weeks (oldest → newest), rows are days of the week.
  */
 export function Heatmap({
@@ -28,6 +30,7 @@ export function Heatmap({
   cellSize = 11,
   gap = 3,
   onDayClick,
+  unitLabel = "focus",
 }: HeatmapProps) {
   const { colors } = useTokens();
 
@@ -95,7 +98,7 @@ export function Heatmap({
               title={
                 cell.future
                   ? ""
-                  : `${cell.key} · ${cell.minutes}m focus`
+                  : `${cell.key} · ${cell.minutes}m ${unitLabel}`
               }
               onClick={cell.future ? undefined : () => onDayClick?.(cell.key)}
               style={{

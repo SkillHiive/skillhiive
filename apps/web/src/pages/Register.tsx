@@ -1,6 +1,9 @@
-import { useState, useCallback, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useState, useCallback, type FormEvent, type ReactNode } from "react";
+import { Link, useLocation } from "react-router";
 import { supabase } from "@/lib/supabase";
+import { authErrorMessage } from "@/lib/authMessages";
+import { safeNext, withNext } from "@/lib/returnTo";
+import { normalizeUsername, profileErrorMessage } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
 import { Text } from "@skillhiive/ui";
 import still from "@/assets/register-still.webp";
@@ -123,6 +126,9 @@ function Field({
   const labelColor =
     error && touched ? colors.tint.danger : focused ? colors.text.primary : colors.text.secondary;
 
+  const showError = !!error && !!touched;
+  const errorId = `${id}-error`;
+
   const autoComplete =
     id === "password" || id === "confirm"
       ? "new-password"
@@ -167,6 +173,8 @@ function Field({
           placeholder={placeholder}
           value={value}
           autoComplete={autoComplete}
+          aria-invalid={showError ? true : undefined}
+          aria-describedby={showError ? errorId : undefined}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => {
@@ -193,6 +201,7 @@ function Field({
               marginLeft: 6,
               fontFamily: monoFont,
             }}
+            aria-hidden="true"
           >
             {tag}
           </span>
@@ -201,7 +210,8 @@ function Field({
           <button
             type="button"
             onClick={onToggleEye}
-            aria-label="Toggle password visibility"
+            aria-label={showEye ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+            aria-pressed={!!showEye}
             className="transition-ui hover:!text-white"
             style={{
               background: "transparent",
@@ -219,13 +229,14 @@ function Field({
         ) : (
           isValid &&
           touched && (
-            <span style={{ fontSize: 11, color: colors.tint.success, marginLeft: 6 }}>✓</span>
+            <span aria-hidden="true" style={{ fontSize: 11, color: colors.tint.success, marginLeft: 6 }}>✓</span>
           )
         )}
       </div>
 
       {children}
       <div
+        id={errorId}
         style={{
           fontSize: 9,
           letterSpacing: 0.3,
@@ -236,7 +247,7 @@ function Field({
           fontFamily: monoFont,
         }}
       >
-        {error && touched ? error : ""}
+        {showError ? error : ""}
       </div>
     </div>
   );
@@ -284,20 +295,18 @@ function PwMeter({ password, colors }: { password: string; colors: Tokens["color
 
 function SubmitButton({
   loading,
-  onClick,
   colors,
   radii,
 }: {
   loading: boolean;
-  onClick: () => void;
   colors: Tokens["colors"];
   radii: Tokens["radii"];
 }) {
   return (
     <button
-      type="button"
-      onClick={onClick}
+      type="submit"
       disabled={loading}
+      aria-label={loading ? "Creating account" : undefined}
       className="transition-ui hover:scale-[1.01] active:scale-[0.99]"
       style={{
         width: "100%",
@@ -342,7 +351,7 @@ function SubmitButton({
   );
 }
 
-function SuccessScreen({ email, colors }: { email: string; colors: Tokens["colors"] }) {
+function SuccessScreen({ email, loginTo, colors }: { email: string; loginTo: string; colors: Tokens["colors"] }) {
   return (
     <div
       style={{
@@ -385,6 +394,9 @@ function SuccessScreen({ email, colors }: { email: string; colors: Tokens["color
         <br />
         VERIFY YOUR ADDRESS TO ACTIVATE YOUR ACCOUNT
       </Text>
+      <Link to={loginTo} style={{ color: colors.surface.skillhive, fontWeight: 700, fontFamily: monoFont, fontSize: 12.5 }}>
+        Then log in
+      </Link>
     </div>
   );
 }
@@ -393,6 +405,9 @@ const ALL_FIELDS: FieldId[] = ["displayName", "username", "email", "password", "
 
 export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
   const { colors, spacing, radii, typography } = useTokens();
+  const location = useLocation();
+  // Where the visitor was headed (e.g. /link?code=… from Cue); kept through sign-up and back to log in.
+  const next = safeNext(location.search);
 
   const [values, setValues] = useState<FormValues>({
     displayName: "",
@@ -425,7 +440,8 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
 
 
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (event: FormEvent) => {
+    event.preventDefault();
     setTouched(Object.fromEntries(ALL_FIELDS.map((f) => [f, true])) as TouchedMap);
     if (ALL_FIELDS.some((id) => validateField(id, values))) return;
 
@@ -437,36 +453,56 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
         await onSubmit(values);
         setSubmitted(true);
       } else {
+        const username = normalizeUsername(values.username);
+        const displayname = values.displayName.trim();
+
+        // Say a taken username before the account exists. Best effort: a failed check doesn't block.
+        const { count } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("username", username);
+        if (count) {
+          setSubmitErr("That username is taken. Try another.");
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: values.email.trim(),
           password: values.password,
           options: {
-            data: {
-              username: values.username.trim().toLowerCase(),
-              displayname: values.displayName.trim(),
-            },
+            data: { username, displayname },
+            // The confirmation link returns to where the visitor was going. Supabase falls back to the
+            // site address when this one isn't on its allow list.
+            ...(next ? { emailRedirectTo: window.location.origin + next } : {}),
           },
         });
-        if (error) throw error;
-        if (!data.user) throw new Error("No user returned.");
+        if (error) {
+          setSubmitErr(authErrorMessage(error, "Couldn't create the account. Try again."));
+          return;
+        }
+        if (!data.user) {
+          setSubmitErr("Couldn't create the account. Try again.");
+          return;
+        }
 
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          username: values.username.trim(),
-          displayname: values.displayName.trim(),
-          avatar: null,
-          created_at: new Date().toISOString(),
-        });
-        if (profileError) console.warn(profileError.message);
+        if (!data.session) {
+          // Email confirmation is on: there is no session to write the profile with yet. It is made on
+          // the first sign-in from the username and display name saved above (ProfileProvider).
+          setSubmitted(true);
+          return;
+        }
 
-        if (!data.session) setSubmitted(true);
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .upsert({ id: data.user.id, username, displayname }, { onConflict: "id" });
+        if (profileError) setSubmitErr(profileErrorMessage(profileError));
       }
     } catch (err) {
-      setSubmitErr(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setSubmitErr(authErrorMessage(err, "Something went wrong. Try again."));
     } finally {
       setLoading(false);
     }
-  }, [values, onSubmit]);
+  }, [values, onSubmit, next]);
 
   return (
     <div
@@ -530,11 +566,15 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
       <div className="backdrop-blur-xs" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: spacing.xxl }}>
         <div style={{ width: "100%", maxWidth: 460 }}>
           {submitted ? (
-            <SuccessScreen email={values.email.trim()} colors={colors} />
+            <SuccessScreen email={values.email.trim()} loginTo={withNext("/login", next)} colors={colors} />
           ) : (
             <>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}>
+              <form
+                onSubmit={(e) => void handleSubmit(e)}
+                noValidate
+                style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}
+              >
                 <div className="flex flex-col mb-4 justify-start items-center h-full mix-blend-screen" style={{ position: "relative" }}>
           <div className="" style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
 
@@ -656,6 +696,7 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
 
                 {submitErr && (
                   <div
+                    role="alert"
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -675,8 +716,8 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
                   </div>
                 )}
 
-                <SubmitButton loading={loading} onClick={handleSubmit} colors={colors} radii={radii} />
-              </div>
+                <SubmitButton loading={loading} colors={colors} radii={radii} />
+              </form>
 
               <div
                 style={{
@@ -692,7 +733,7 @@ export default function SignUpScreen({ onSubmit }: SignUpScreenProps) {
                   Already have an account?
                 </Text>
                 <Link
-                  to="/login"
+                  to={withNext("/login", next)}
                   className="transition-ui hover:scale-[1.02]"
                   style={{
                     color: colors.surface.skillhive,
