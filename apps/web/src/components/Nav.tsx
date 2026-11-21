@@ -2,9 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Link, useLocation } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { activeTab, hidesNav } from "@/lib/nav";
+import { useFocusSession } from "@/hooks/useFocusSession";
+import { activeTab, hidesNav, showsFocusChip } from "@/lib/nav";
 import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
+import { FocusTimerChip } from "./focus/FocusTimerChip";
 
 type Tab = { id: string; to: string; label: string; icon: string };
 
@@ -20,12 +22,13 @@ type Pill = { left: number; top: number; width: number; height: number; opacity:
  * The floating pill navigation with the sliding yellow highlight. The highlight sits on
  * the page you're on and follows the pointer (or keyboard focus) while you look around.
  * "You" is the avatar button beside the bell, not a tab, so there is one way to your profile.
- * The class "nav" lets focus mode hide it.
+ * While a focus session runs elsewhere, a small timer chip beside the tabs leads back to it.
  */
 const Nav = () => {
   const session = useAuth();
   const { profile } = useProfile();
   const { pathname } = useLocation();
+  const focus = useFocusSession();
 
   const signedIn = !!session;
   const tabs: Tab[] = signedIn
@@ -122,6 +125,7 @@ const Nav = () => {
 
         {signedIn && (
           <>
+            {showsFocusChip(pathname, focus.session.active) && <FocusTimerChip />}
             <NotificationBell />
             <AccountMenu active={current === "you"} />
           </>

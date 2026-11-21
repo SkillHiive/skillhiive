@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Globe, Lock } from "lucide-react";
+import { Eye, EyeOff, Globe, Lock } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { formatDuration } from "@/lib/timeTracker";
@@ -55,6 +55,7 @@ export function ProjectCueSources({ projectId, projectName, onChanged }: Props) 
 
   const linked = groups.filter((group) => group.today_project_id === projectId);
   const unlinked = groups.filter((group) => group.today_project_id === null);
+  const remotes = linked.map((group) => group.remote).filter((remote): remote is string => !!remote);
 
   async function run(pending: Promise<CueResult>, done: string) {
     setBusy(true);
@@ -103,37 +104,53 @@ export function ProjectCueSources({ projectId, projectName, onChanged }: Props) 
             {isPublic ? "Public" : "Only you"}
           </Text>
         </span>
-        <Text variant="caption" tone="tertiary" style={{ flex: 1, minWidth: 160 }}>
-          {isPublic
-            ? "Everyone can see this project, its coding time and languages."
-            : "Nobody else can see this project or its coding time."}
-        </Text>
+        <span style={{ flex: 1 }} />
         {isPublic ? (
-          <button style={pill} disabled={busy} onClick={() => void run(setProjectVisibility(projectId, false), "This project is private again.")}>
+          <button className="ui-press" style={pill} disabled={busy} onClick={() => void run(setProjectVisibility(projectId, false), `${projectName} is private.`)}>
             Make private
           </button>
         ) : (
-          <button style={pill} disabled={busy} onClick={() => setConfirming(true)}>
+          <button className="ui-press" style={pill} disabled={busy} onClick={() => setConfirming(true)}>
             Make public…
           </button>
         )}
       </div>
 
       {confirming && (
-        <div role="group" aria-label={`Make ${projectName} public`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: spacing.sm, borderRadius: radii.md, background: colors.bg.muted }}>
-          <Text variant="caption" tone="secondary">
-            Everyone will see <b>{projectName}</b>, its coding time and its languages. Repository addresses and the
-            folders you work in stay private.
-          </Text>
+        <div
+          role="group"
+          aria-label={`Make ${projectName} public`}
+          className="ui-rise"
+          style={{ display: "flex", flexDirection: "column", gap: 6, padding: spacing.sm, borderRadius: radii.md, background: colors.bg.muted }}
+        >
+          {/* What visitors will see, then what stays hidden. */}
+          <div role="note" aria-label="Visitors see" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", color: colors.text.secondary }}>
+            <Eye size={13} aria-hidden="true" />
+            <Text variant="caption" weight={700}>{projectName}</Text>
+            <Text variant="caption" tone="secondary">· coding time · languages</Text>
+          </div>
+          {remotes.length > 0 && (
+            <div role="note" aria-label="Stays hidden" style={{ display: "flex", alignItems: "center", gap: 6, color: colors.text.tertiary, minWidth: 0 }}>
+              <EyeOff size={13} aria-hidden="true" />
+              <Text
+                variant="caption"
+                tone="tertiary"
+                style={{ textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
+                {remotes.join(", ")}
+              </Text>
+            </div>
+          )}
           <div style={{ display: "flex", gap: spacing.sm }}>
             <button
+              className="ui-press"
               style={{ ...pill, color: colors.text.skillhive, borderColor: colors.surface.skillhive }}
               disabled={busy}
-              onClick={() => void run(setProjectVisibility(projectId, true), "This project is public.")}
+              onClick={() => void run(setProjectVisibility(projectId, true), `${projectName} is public.`)}
             >
               Make public
             </button>
-            <button style={pill} onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="ui-press" style={pill} onClick={() => setConfirming(false)}>Cancel</button>
           </div>
         </div>
       )}
@@ -141,9 +158,6 @@ export function ProjectCueSources({ projectId, projectName, onChanged }: Props) 
       {(linked.length > 0 || unlinked.length > 0) && (
         <>
           <Text variant="label" tone="secondary">From Cue</Text>
-          {linked.length === 0 && (
-            <Text variant="caption" tone="tertiary">No Cue project feeds this one yet.</Text>
-          )}
           {linked.map((group) => (
             <div key={group.id} style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 140 }}>
@@ -153,6 +167,7 @@ export function ProjectCueSources({ projectId, projectName, onChanged }: Props) 
                 </Text>
               </div>
               <button
+                className="ui-press"
                 style={pill}
                 disabled={busy}
                 aria-label={`Unlink ${group.name}`}

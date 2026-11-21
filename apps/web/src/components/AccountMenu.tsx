@@ -1,10 +1,11 @@
 import { Menu, MenuButton, MenuItem, MenuItems, MenuSeparator } from "@headlessui/react";
-import { LogOut, Monitor, Moon, Sun, Timer, UserRound, type LucideIcon } from "lucide-react";
+import { FolderGit2, LogOut, Monitor, Moon, Sun, Timer, UserRound, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useTheme, type Theme } from "./themeContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/lib/confirm";
+import { useFocusSession } from "@/hooks/useFocusSession";
 
 const THEMES: { value: Theme; label: string; Icon: LucideIcon }[] = [
   { value: "system", label: "Auto", Icon: Monitor },
@@ -17,7 +18,8 @@ const itemClass =
 
 /**
  * The avatar button in the top bar: the one place for "you". It lights up while you are
- * on your profile or settings, and opens a short menu: profile, coding time, theme, sign out.
+ * on your profile, projects or settings, and opens a short menu: profile, projects, coding
+ * time, theme, sign out.
  */
 export default function AccountMenu({ active = false }: { active?: boolean }) {
   const { profile } = useProfile();
@@ -25,6 +27,7 @@ export default function AccountMenu({ active = false }: { active?: boolean }) {
   const navigate = useNavigate();
 
   const confirm = useConfirm();
+  const focus = useFocusSession();
 
   async function signOut() {
     const ok = await confirm({
@@ -34,6 +37,8 @@ export default function AccountMenu({ active = false }: { active?: boolean }) {
       tone: "neutral",
     });
     if (!ok) return;
+    // A focus session belongs to whoever is signed in; don't hand it to the next person.
+    focus.end();
     const { error } = await supabase.auth.signOut();
     // If the server can't be reached, still end the session on this device.
     if (error) await supabase.auth.signOut({ scope: "local" });
@@ -76,6 +81,12 @@ export default function AccountMenu({ active = false }: { active?: boolean }) {
           <button type="button" className={itemClass} onClick={() => navigate("/profile")}>
             <UserRound size={16} aria-hidden="true" />
             Profile
+          </button>
+        </MenuItem>
+        <MenuItem>
+          <button type="button" className={itemClass} onClick={() => navigate("/projects")}>
+            <FolderGit2 size={16} aria-hidden="true" />
+            Projects
           </button>
         </MenuItem>
         <MenuItem>

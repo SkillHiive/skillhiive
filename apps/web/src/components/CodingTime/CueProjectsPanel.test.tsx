@@ -41,7 +41,7 @@ describe("CueProjectsPanel", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("lists one row per repository, across machines, and says only the owner sees it", async () => {
+  it("lists one row per repository, across machines, and marks the list as owner-only", async () => {
     m.projects.mockResolvedValue([
       cueRow("d1", "p_a", "stager-1", "github.com/me/stager-1"),
       cueRow("d2", "p_b", "stager-1", "github.com/me/stager-1"),
@@ -49,7 +49,7 @@ describe("CueProjectsPanel", () => {
     render(<CueProjectsPanel projects={[]} />);
     expect(await screen.findByText("stager-1")).toBeTruthy();
     expect(screen.getByText(/2h · air, studio/)).toBeTruthy();
-    expect(screen.getByText(/Only you can see these/)).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Only you see this list" })).toBeTruthy();
   });
 
   it("creates a private project from a Cue project", async () => {
@@ -59,7 +59,7 @@ describe("CueProjectsPanel", () => {
     render(<CueProjectsPanel projects={[{ id: "t1", name: "Something else" }]} onChanged={changed} />);
     await user.click(await screen.findByRole("button", { name: "Create project" }));
     expect(m.create).toHaveBeenCalledWith("d1", "p_a");
-    expect((await screen.findByRole("status")).textContent).toBe("stager-1 is now a project. Only you can see it.");
+    expect((await screen.findByRole("status")).textContent).toBe("stager-1 is now a private project.");
     expect(changed).toHaveBeenCalledTimes(1);
     expect(m.visibility).not.toHaveBeenCalled();
   });
@@ -81,15 +81,19 @@ describe("CueProjectsPanel", () => {
     expect(m.map).toHaveBeenCalledWith("d1", "p_a", "t1");
   });
 
-  it("makes a linked project public only after confirming what others will see", async () => {
+  it("makes a linked project public only after showing what visitors will see", async () => {
     const user = userEvent.setup();
     m.projects.mockResolvedValue([cueRow("d1", "p_a", "stager-1", "github.com/me/stager-1", "t1")]);
     render(<CueProjectsPanel projects={[{ id: "t1", name: "Stager", is_public: false }]} />);
-    expect(await screen.findByText("Only you")).toBeTruthy();
+    expect(await screen.findByRole("img", { name: "Only you" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Make public…" }));
     expect(m.visibility).not.toHaveBeenCalled();
     const confirm = screen.getByRole("group", { name: "Make Stager public" });
-    expect(within(confirm).getByText(/repository address/)).toBeTruthy();
+    const seen = within(confirm).getByRole("note", { name: "Visitors see" });
+    expect(within(seen).getByText("Stager")).toBeTruthy();
+    expect(within(seen).getByText(/1h/)).toBeTruthy();
+    const hidden = within(confirm).getByRole("note", { name: "Stays hidden" });
+    expect(within(hidden).getByText("github.com/me/stager-1")).toBeTruthy();
     await user.click(within(confirm).getByRole("button", { name: "Make public" }));
     expect(m.visibility).toHaveBeenCalledWith("t1", true);
   });
@@ -98,11 +102,11 @@ describe("CueProjectsPanel", () => {
     m.projects.mockResolvedValue([cueRow("d1", "p_a", "stager-1", null, "t1")]);
     m.coding.mockResolvedValue(new Map([["t1", false]]));
     const { unmount } = render(<CueProjectsPanel projects={[{ id: "t1", name: "Stager" }]} />);
-    expect(await screen.findByText("Only you")).toBeTruthy();
+    expect(await screen.findByRole("img", { name: "Only you" })).toBeTruthy();
     unmount();
     m.coding.mockResolvedValue(new Map([["t1", true]]));
     render(<CueProjectsPanel projects={[{ id: "t1", name: "Stager" }]} />);
-    expect(await screen.findByText("Public")).toBeTruthy();
+    expect(await screen.findByRole("img", { name: "Public" })).toBeTruthy();
   });
 
   it("unlinks a repository", async () => {
@@ -116,6 +120,6 @@ describe("CueProjectsPanel", () => {
   it("mentions time in projects kept on the computer, without naming them", async () => {
     m.privateSeconds.mockResolvedValue(5400);
     render(<CueProjectsPanel projects={[]} />);
-    expect(await screen.findByText(/1h 30m this week in projects you keep on your computer/)).toBeTruthy();
+    expect(await screen.findByText("+1h 30m private this week")).toBeTruthy();
   });
 });
