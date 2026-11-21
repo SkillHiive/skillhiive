@@ -247,7 +247,7 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
           <Text variant="caption" tone="tertiary">
             Last coded: {lastCoded}
           </Text>
-          {username && (
+          {username && extras?.source !== "cue" && (
             <a
               href={`https://wakatime.com/@${username}`}
               target="_blank"

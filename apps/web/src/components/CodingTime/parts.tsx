@@ -46,13 +46,19 @@ function shortDate(iso: string): string {
   }
 }
 
-/** Horizontal language share bars (top N languages). */
+/**
+ * Horizontal language share bars (top N languages). `showTime={false}` drops the
+ * durations: only some activity carries a language, so they don't add up to the
+ * total shown beside them, and the bars alone show the share.
+ */
 export function LanguageBreakdown({
   breakdown,
   maxItems = 5,
+  showTime = true,
 }: {
   breakdown: { name: string; total_seconds: number }[];
   maxItems?: number;
+  showTime?: boolean;
 }) {
   const { colors } = useTokens();
   const top = breakdown.slice(0, maxItems);
@@ -88,9 +94,11 @@ export function LanguageBreakdown({
               }}
             />
           </div>
-          <Text variant="caption" tone="tertiary" style={{ width: 52, textAlign: "right" }}>
-            {formatDuration(lang.total_seconds)}
-          </Text>
+          {showTime && (
+            <Text variant="caption" tone="tertiary" style={{ width: 52, textAlign: "right" }}>
+              {formatDuration(lang.total_seconds)}
+            </Text>
+          )}
         </div>
       ))}
     </div>
@@ -102,7 +110,7 @@ export function MiniHeatmap({ daily }: { daily: TrackerDayStat[] }) {
   const data: HeatmapDay[] = daily.map((d) => ({
     day: d.date,
     minutes: Math.round(d.seconds / 60),
-    sessions: 1,
+    sessions: 0,
   }));
   if (data.length === 0) return null;
   return <Heatmap data={data} weeks={12} cellSize={9} gap={2} unitLabel="coding" />;
