@@ -127,10 +127,11 @@ export default function ActionRow({
   const pill = (active: boolean, key: string): React.CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
-    padding: "6px 10px",
+    gap: 5,
+    minHeight: 30,
+    padding: "4px 8px",
     borderRadius: 999,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: active ? 600 : 400,
     border: "none",
     cursor: "pointer",
@@ -152,22 +153,22 @@ export default function ActionRow({
         display: "flex",
         alignItems: "center",
         gap: 4,
-        padding: `${spacing.sm}px ${spacing.base}px`,
+        padding: `${spacing.xs}px ${spacing.md}px`,
         borderTop: noborder ? "none" : `1px solid ${colors.border.subtle}`,
       }}
     >
       <button
         onClick={handleLike}
         aria-pressed={liked}
-        aria-label={liked ? "Unlike" : "Like"}
+        aria-label={`${liked ? "Unlike" : "Like"}${likeCount > 0 ? `, ${likeCount}` : ""}`}
         onMouseEnter={() => setHover("like")}
         onMouseLeave={() => setHover(null)}
         className="ui-press"
         style={pill(liked, "like")}
       >
         {/* Re-keyed on each change so the heart pops when you like it. */}
-        <Heart key={liked ? "on" : "off"} size={16} fill={liked ? "#ef4444" : "none"} className={liked ? "ui-pop" : undefined} />
-        <span>{likeCount > 0 ? likeCount : "Like"}</span>
+        <Heart key={liked ? "on" : "off"} size={15} fill={liked ? "#ef4444" : "none"} className={liked ? "ui-pop" : undefined} />
+        {likeCount > 0 && <span>{likeCount}</span>}
       </button>
 
       <button
@@ -175,13 +176,14 @@ export default function ActionRow({
           e.stopPropagation();
           onCommentPress?.(postId);
         }}
+        aria-label={comments > 0 ? `Comments, ${comments}` : "Comment"}
         onMouseEnter={() => setHover("comment")}
         onMouseLeave={() => setHover(null)}
         className="ui-press"
         style={pill(false, "comment")}
       >
-        <MessageCircle size={16} />
-        <span>{comments > 0 ? comments : "Comment"}</span>
+        <MessageCircle size={15} />
+        {comments > 0 && <span>{comments}</span>}
       </button>
 
       <div style={{ flex: 1 }} />

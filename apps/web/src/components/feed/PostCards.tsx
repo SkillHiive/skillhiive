@@ -1,7 +1,9 @@
 import React from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { Briefcase, Handshake } from "lucide-react";
 import { Avatar, Text } from "@skillhiive/ui";
 import ActionRow from "@/components/ActionRow";
+import { timeAgo } from "@/lib/timeAgo";
 import { useTokens } from "@/theme";
 
 
@@ -37,10 +39,10 @@ export interface PostModel {
   post_images: { url: string; sort_order: number }[] | null;
 }
 
-const STATUS_CFG: Record<ProjectStatus, { label: string; color: string; bg: string }> = {
-  active:    { label: "Active",    color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
-  completed: { label: "Completed", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  paused:    { label: "Paused",    color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+const STATUS_DOT: Record<ProjectStatus, { label: string; color: string }> = {
+  active: { label: "Active", color: "#22c55e" },
+  completed: { label: "Done", color: "#3b82f6" },
+  paused: { label: "Paused", color: "#f59e0b" },
 };
 
 const OFFER_LABELS: Record<string, string> = {
@@ -50,27 +52,19 @@ const OFFER_LABELS: Record<string, string> = {
   contract: "Contract",
 };
 
+/** Long words and links wrap instead of pushing the card wider than a phone. */
+const WRAP: React.CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word" };
 
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60)    return `${s}s ago`;
-  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+function firstImage(post: PostModel): string | undefined {
+  return [...(post.post_images ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0]?.url;
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
-}
-
-function calcDuration(s: string | null, e: string | null): string | null {
-  if (!s) return null;
-  const ms = (e ? new Date(e) : new Date()).getTime() - new Date(s).getTime();
-  const mo = Math.round(ms / (1000 * 60 * 60 * 24 * 30));
-  if (mo < 1)  return "< 1 mo";
-  if (mo < 12) return `${mo} mo`;
-  const y = Math.floor(mo / 12), r = mo % 12;
-  return r ? `${y} yr ${r} mo` : `${y} yr`;
+/** Where an author's name goes: their public page by username, else by id. */
+function authorHref(post: PostModel): string | null {
+  const username = post.profiles?.username;
+  if (username) return `/p/${encodeURIComponent(username)}`;
+  const id = post.profiles?.id ?? post.user_id;
+  return id ? `/profile/${id}` : null;
 }
 
 
@@ -94,12 +88,13 @@ export function FeedCard({
             }
           : undefined
       }
-      className={`overflow-hidden border border-[var(--color-border-subtle)] shadow-[0_2px_6px_rgba(0,0,0,0.06)] ${onPress ? "ui-lift" : ""}`}
+      className={`overflow-hidden border border-[var(--color-border-subtle)] ${onPress ? "ui-lift" : ""}`}
       style={{
         background: colors.surface.primary,
         borderRadius: radii.xl,
         marginBottom: spacing.md,
         cursor: onPress ? "pointer" : "default",
+        maxWidth: "100%",
       }}
     >
       {children}
@@ -107,85 +102,98 @@ export function FeedCard({
   );
 }
 
-function AuthorRow({
-  post,
-  myId,
-  badge,
-  badgeColor,
-  badgeBg,
-}: {
-  post: PostModel;
-  myId: string | null;
-  badge: string;
-  badgeColor: string;
-  badgeBg: string;
-}) {
+/** The kind of post, as a small quiet icon. Plain updates have none. */
+function KindIcon({ post }: { post: PostModel }) {
+  const { colors } = useTokens();
+  const kind =
+    post.post_type === "project"
+      ? { Icon: Briefcase, label: "Project" }
+      : post.post_type === "offer"
+        ? { Icon: Handshake, label: "Offer" }
+        : null;
+  if (!kind) return null;
+  return (
+    <span title={kind.label} aria-label={kind.label} role="img" style={{ color: colors.text.tertiary, display: "inline-flex", flexShrink: 0 }}>
+      <kind.Icon size={14} aria-hidden="true" />
+    </span>
+  );
+}
+
+function AuthorRow({ post, hideAuthor }: { post: PostModel; hideAuthor?: boolean }) {
   const { spacing } = useTokens();
-  const navigate = useNavigate();
   const name = post.profiles?.username ?? "unknown";
-  const authorId = post.profiles?.id ?? post.user_id;
+  const href = authorHref(post);
+  const when = (
+    <Text variant="bodySm" tone="tertiary" style={{ flexShrink: 0 }}>
+      <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
+        {timeAgo(post.created_at)}
+      </time>
+    </Text>
+  );
+  const who = (
+    <>
+      <Avatar name={name} source={post.profiles?.avatar} size={30} />
+      <Text variant="bodySm" weight={700} numberOfLines={1}>
+        {name}
+      </Text>
+    </>
+  );
 
   return (
-    <div style={{ display: "flex", alignItems: "center", marginBottom: spacing.sm }}>
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!authorId) return;
-          if (authorId === myId) navigate("/profile");
-          else if (post.profiles?.username) navigate(`/p/${encodeURIComponent(post.profiles.username)}`);
-          else navigate(`/profile/${authorId}`);
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          flex: 1,
-          minWidth: 0,
-          gap: spacing.sm,
-          cursor: authorId ? "pointer" : "default",
-        }}
-      >
-        <Avatar name={name} source={post.profiles?.avatar} size={32} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Text variant="bodySm" tone="secondary" weight={600} numberOfLines={1}>
-            {name}
+    <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm, minWidth: 0 }}>
+      {hideAuthor ? (
+        <div style={{ flex: 1 }}>{when}</div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, flex: 1, minWidth: 0 }}>
+          {href ? (
+            <Link
+              to={href}
+              onClick={(e) => e.stopPropagation()}
+              className="flex min-w-0 items-center gap-2 rounded-full hover:underline"
+            >
+              {who}
+            </Link>
+          ) : (
+            <span className="flex min-w-0 items-center gap-2">{who}</span>
+          )}
+          <Text variant="bodySm" tone="tertiary" aria-hidden="true">
+            ·
           </Text>
-          <Text variant="caption" tone="tertiary" style={{ marginTop: 1 }}>
-            {timeAgo(post.created_at)}
-          </Text>
+          {when}
         </div>
-      </div>
-      <div style={{ background: badgeBg, padding: `${spacing.xs}px ${spacing.sm}px`, borderRadius: 999, flexShrink: 0 }}>
-        <Text variant="caption" weight={700} style={{ color: badgeColor }}>
-          {badge}
-        </Text>
-      </div>
+      )}
+      <KindIcon post={post} />
     </div>
   );
 }
 
-function BadgeRow({
-  post,
-  badge,
-  badgeColor,
-  badgeBg,
-}: {
-  post: PostModel;
-  badge: string;
-  badgeColor: string;
-  badgeBg: string;
-}) {
-  const { spacing } = useTokens();
+/** The person's own words: the loudest thing on the card. */
+function Caption({ text }: { text: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
-      <div style={{ background: badgeBg, padding: `${spacing.xs}px ${spacing.sm}px`, borderRadius: 999 }}>
-        <Text variant="caption" weight={700} style={{ color: badgeColor }}>
-          {badge}
-        </Text>
-      </div>
-      <Text variant="caption" tone="tertiary">
-        {timeAgo(post.created_at)}
-      </Text>
-    </div>
+    <Text as="p" variant="bodyLg" numberOfLines={8} style={{ ...WRAP, margin: 0 }}>
+      {text}
+    </Text>
+  );
+}
+
+function PostImage({ src, alt }: { src: string; alt: string }) {
+  const { colors, radii, spacing } = useTokens();
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      style={{
+        display: "block",
+        width: "100%",
+        maxWidth: "100%",
+        aspectRatio: "16 / 10",
+        objectFit: "cover",
+        marginTop: spacing.md,
+        borderRadius: radii.lg,
+        background: colors.surface.secondary,
+      }}
+    />
   );
 }
 
@@ -196,166 +204,132 @@ interface CardProps {
   onOpen?: (id: string) => void;
 }
 
-
-export function ProjectCard({ post, myId = null, hideAuthor, onOpen }: CardProps) {
+function useOpen(post: PostModel, onOpen?: (id: string) => void) {
   const navigate = useNavigate();
-  const { colors, spacing, radii } = useTokens();
+  return {
+    open: () => (onOpen ? onOpen(post.id) : navigate(`/post/${post.id}`)),
+    comment: () => navigate(`/post/${post.id}`, { state: { focusComment: true } }),
+  };
+}
+
+function Actions({ post, onComment }: { post: PostModel; onComment: () => void }) {
+  return <ActionRow postId={post.id} likes={post.likes_count} comments={post.comments_count} onCommentPress={onComment} />;
+}
+
+
+export function ProjectCard({ post, hideAuthor, onOpen }: CardProps) {
+  const { spacing } = useTokens();
+  const { open, comment } = useOpen(post, onOpen);
   const pp = post.project_posts!;
-  const cfg = STATUS_CFG[pp.status];
-  const img = [...(post.post_images ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0]?.url;
-  const dur = calcDuration(pp.started_at, pp.ended_at);
-  const hasDateRange = pp.started_at || pp.ended_at;
-  const open = () => (onOpen ? onOpen(post.id) : navigate(`/post/${post.id}`));
+  const status = STATUS_DOT[pp.status] ?? STATUS_DOT.active;
+  const img = firstImage(post);
+  const caption = post.caption?.trim();
 
   return (
     <FeedCard onPress={open}>
       <div style={{ padding: spacing.base }}>
-        {hideAuthor ? (
-          <BadgeRow post={post} badge="Project" badgeColor={colors.surface.skillhive} badgeBg={colors.surface.skillhive + "18"} />
-        ) : (
-          <AuthorRow post={post} myId={myId} badge="Project" badgeColor={colors.surface.skillhive} badgeBg={colors.surface.skillhive + "18"} />
-        )}
+        <AuthorRow post={post} hideAuthor={hideAuthor} />
 
-        <div style={{ display: "flex", alignItems: "flex-start", gap: spacing.sm }}>
-          <Text variant="subtitle" numberOfLines={2} style={{ flex: 1 }}>
+        {caption ? (
+          <Caption text={caption} />
+        ) : (
+          <Text as="p" variant="subtitle" numberOfLines={2} style={{ ...WRAP, margin: 0 }}>
             {pp.title}
           </Text>
-          <div style={{ background: cfg.bg, padding: "5px 8px", borderRadius: 999, flexShrink: 0 }}>
-            <Text variant="caption" weight={700} style={{ color: cfg.color }}>
-              {cfg.label}
+        )}
+
+        {/* The project it's filed under, quiet: a status dot and its name. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: spacing.sm, minWidth: 0 }}>
+          <span
+            title={status.label}
+            aria-label={status.label}
+            role="img"
+            style={{ width: 6, height: 6, borderRadius: "50%", background: status.color, flexShrink: 0 }}
+          />
+          {caption && (
+            <Text variant="bodySm" tone="tertiary" weight={600} numberOfLines={1}>
+              {pp.title}
             </Text>
-          </div>
+          )}
         </div>
 
-        {hasDateRange && (
-          <Text variant="bodySm" tone="tertiary" style={{ marginTop: spacing.xs }}>
-            {pp.started_at ? fmtDate(pp.started_at) : "?"} →{" "}
-            {pp.ended_at ? fmtDate(pp.ended_at) : "Present"}
-            {dur ? `  ·  ${dur}` : ""}
-          </Text>
-        )}
-
-        {img && (
-          <img
-            src={img}
-            alt={pp.title}
-            loading="lazy"
-            style={{ width: "100%", height: 200, objectFit: "cover", marginTop: spacing.md, borderRadius: radii.lg, background: colors.surface.secondary, display: "block" }}
-          />
-        )}
+        {img && <PostImage src={img} alt={pp.title} />}
 
         {pp.description && (
-          <Text variant="body" tone="secondary" numberOfLines={3} style={{ marginTop: spacing.md }}>
+          <Text as="p" variant="bodySm" tone="secondary" numberOfLines={3} style={{ ...WRAP, margin: `${spacing.md}px 0 0` }}>
             {pp.description}
           </Text>
         )}
-
-        {post.caption && (
-          <Text variant="bodySm" tone="tertiary" numberOfLines={2} style={{ marginTop: spacing.xs, fontStyle: "italic" }}>
-            {post.caption}
-          </Text>
-        )}
       </div>
 
-      <ActionRow postId={post.id} likes={post.likes_count} comments={post.comments_count} onCommentPress={() => navigate(`/post/${post.id}`, { state: { focusComment: true } })} />
+      <Actions post={post} onComment={comment} />
     </FeedCard>
   );
 }
 
 
-export function OfferCard({ post, myId = null, hideAuthor, onOpen }: CardProps) {
-  const navigate = useNavigate();
+export function OfferCard({ post, hideAuthor, onOpen }: CardProps) {
   const { colors, spacing, radii } = useTokens();
+  const { open, comment } = useOpen(post, onOpen);
   const op = post.offer_posts!;
   const typeLabel = op.offer_type ? OFFER_LABELS[op.offer_type] ?? op.offer_type : null;
-  const open = () => (onOpen ? onOpen(post.id) : navigate(`/post/${post.id}`));
+  const caption = post.caption?.trim();
+  const details = [op.company, typeLabel, op.location, op.salary_range].filter(Boolean);
 
   return (
     <FeedCard onPress={open}>
       <div style={{ padding: spacing.base }}>
-        {hideAuthor ? (
-          <BadgeRow post={post} badge="Offer" badgeColor={colors.tint.success} badgeBg={colors.tint.success + "22"} />
-        ) : (
-          <AuthorRow post={post} myId={myId} badge="Offer" badgeColor={colors.tint.success} badgeBg={colors.tint.success + "22"} />
-        )}
+        <AuthorRow post={post} hideAuthor={hideAuthor} />
 
-        <div style={{ background: colors.surface.secondary, borderRadius: radii.lg, padding: spacing.base, marginBottom: spacing.sm }}>
-          {op.company && (
-            <Text variant="caption" weight={700} style={{ color: colors.tint.success, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {op.company}
-            </Text>
-          )}
-          <Text variant="title" weight={800} style={{ marginTop: op.company ? spacing.xs : 0 }}>
-            {op.role ?? "Role TBD"}
+        {caption && <Caption text={caption} />}
+
+        <div
+          style={{
+            border: `1px solid ${colors.border.subtle}`,
+            borderRadius: radii.lg,
+            padding: spacing.md,
+            marginTop: caption ? spacing.md : 0,
+          }}
+        >
+          <Text variant="subtitle" style={WRAP}>
+            {op.role ?? "Role"}
           </Text>
-          {(op.salary_range || op.location) && (
-            <Text variant="bodySm" tone="secondary" style={{ marginTop: spacing.xs }}>
-              {[op.salary_range, op.location].filter(Boolean).join(" · ")}
+          {details.length > 0 && (
+            <Text as="p" variant="bodySm" tone="tertiary" style={{ ...WRAP, margin: `${spacing.xs}px 0 0` }}>
+              {details.join(" · ")}
             </Text>
-          )}
-          {typeLabel && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: spacing.sm }}>
-              <div style={{ background: colors.tint.success + "22", padding: "4px 8px", borderRadius: 999 }}>
-                <Text variant="caption" weight={700} style={{ color: colors.tint.success }}>
-                  {typeLabel}
-                </Text>
-              </div>
-            </div>
           )}
         </div>
-
-        {post.caption && (
-          <Text variant="body" tone="secondary">
-            {post.caption}
-          </Text>
-        )}
       </div>
 
-      <ActionRow postId={post.id} likes={post.likes_count} comments={post.comments_count} onCommentPress={() => navigate(`/post/${post.id}`, { state: { focusComment: true } })} />
+      <Actions post={post} onComment={comment} />
     </FeedCard>
   );
 }
 
 
-export function MediaCard({ post, myId = null, hideAuthor, onOpen }: CardProps) {
-  const navigate = useNavigate();
-  const { colors, spacing, radii } = useTokens();
-  const img = [...(post.post_images ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0]?.url;
-  const open = () => (onOpen ? onOpen(post.id) : navigate(`/post/${post.id}`));
+export function MediaCard({ post, hideAuthor, onOpen }: CardProps) {
+  const { spacing } = useTokens();
+  const { open, comment } = useOpen(post, onOpen);
+  const img = firstImage(post);
+  const caption = post.caption?.trim();
 
   return (
     <FeedCard onPress={open}>
       <div style={{ padding: spacing.base }}>
-        {hideAuthor ? (
-          <BadgeRow post={post} badge="Media" badgeColor={colors.surface.skillhive} badgeBg={colors.surface.skillhive + "18"} />
-        ) : (
-          <AuthorRow post={post} myId={myId} badge="Media" badgeColor={colors.surface.skillhive} badgeBg={colors.surface.skillhive + "18"} />
-        )}
-
-        {img && (
-          <img
-            src={img}
-            alt=""
-            loading="lazy"
-            style={{ width: "100%", height: 280, objectFit: "cover", marginBottom: spacing.md, borderRadius: radii.lg, background: colors.surface.secondary, display: "block" }}
-          />
-        )}
-
-        {post.caption && (
-          <Text variant="body" tone="secondary">
-            {post.caption}
-          </Text>
-        )}
+        <AuthorRow post={post} hideAuthor={hideAuthor} />
+        {caption && <Caption text={caption} />}
+        {img && <PostImage src={img} alt={caption ? caption.slice(0, 120) : ""} />}
       </div>
 
-      <ActionRow postId={post.id} likes={post.likes_count} comments={post.comments_count} onCommentPress={() => navigate(`/post/${post.id}`, { state: { focusComment: true } })} />
+      <Actions post={post} onComment={comment} />
     </FeedCard>
   );
 }
 
 export function PostCard({ post, myId = null, hideAuthor, onOpen }: CardProps) {
-  if (post.post_type === "project") return <ProjectCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
-  if (post.post_type === "offer") return <OfferCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
-  if (post.post_type === "media") return <MediaCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
-  return null;
+  if (post.post_type === "project" && post.project_posts) return <ProjectCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
+  if (post.post_type === "offer" && post.offer_posts) return <OfferCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
+  // A plain update, or a post whose detail row is missing: still show what they wrote.
+  return <MediaCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
 }
