@@ -6,6 +6,7 @@ import { fetchAllyIds } from "@/lib/allies";
 import { loadErrorMessage, withTimeout } from "@/lib/load";
 import { POST_SELECT } from "@/lib/posts";
 import { groupByDay } from "@/lib/feedDays";
+import { onPostChange } from "@/lib/postDetail";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Segmented } from "@/components/ui/Segmented";
 import { EmptyState, Skeleton } from "@/components/ui/States";
@@ -202,6 +203,29 @@ export default function Feed() {
     [filter],
   );
 
+  // A post opened in the sheet above was edited, commented on or deleted: match it here.
+  useEffect(
+    () =>
+      onPostChange((change) => {
+        if (change.deleted) {
+          setPosts((prev) => prev.filter((p) => p.id !== change.id));
+          return;
+        }
+        setPosts((prev) => {
+          const i = prev.findIndex((p) => p.id === change.id);
+          const cur = prev[i];
+          if (!cur) return prev;
+          const patch = change.patch;
+          const next = { ...cur, ...patch };
+          if (next.caption === cur.caption && next.comments_count === cur.comments_count) return prev;
+          const copy = [...prev];
+          copy[i] = next;
+          return copy;
+        });
+      }),
+    [],
+  );
+
   const allyIds = useMemo(() => (authors ? authors.filter((id) => id !== myId) : null), [authors, myId]);
 
   const days = useMemo(() => groupByDay(posts), [posts]);
@@ -284,7 +308,7 @@ export default function Feed() {
                       className="ui-rise"
                       style={{ animationDelay: `${Math.min(day.start + j, 6) * 30}ms` }}
                     >
-                      <PostCard post={post} myId={myId} />
+                      <PostCard post={post} myId={myId} sheet />
                     </div>
                   ))}
                 </section>
