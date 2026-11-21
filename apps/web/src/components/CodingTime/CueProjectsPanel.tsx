@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Globe, Lock } from "lucide-react";
+import { Eye, EyeOff, Globe, HardDrive, Lock } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { formatDuration } from "@/lib/timeTracker";
+import { localDate } from "@/lib/projectTime";
 import {
   createProjectFromCue,
   fetchMyCodingVisibility,
@@ -21,22 +22,16 @@ import {
 } from "@/lib/cue";
 
 interface Props {
-  /** The user's SkillHiive projects, as the Projects card lists them. */
+  /** The user's SkillHiive projects, as the Projects page lists them. */
   projects: PanelProject[];
   /** Called after a project was created, linked or changed visibility. */
   onChanged?: () => void;
 }
 
-function localDate(daysAgo: number): string {
-  const day = new Date(Date.now() - daysAgo * 86_400_000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-}
-
 /**
- * Projects Cue reported, shown only to their owner. Each one is linked to a
- * SkillHiive project, made into one, or left alone; making one public is a
- * separate, confirmed step.
+ * Projects Cue reported, shown only to their owner (the lock by the title). Each one
+ * is linked to a SkillHiive project, made into one, or left alone; making one public
+ * is a separate step that first shows what visitors will see.
  */
 export function CueProjectsPanel({ projects, onChanged }: Props) {
   const { colors, spacing, radii } = useTokens();
@@ -102,6 +97,7 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
     alignItems: "center",
     gap: 5,
   };
+  const primaryPill: React.CSSProperties = { ...pill, color: colors.text.skillhive, borderColor: colors.surface.skillhive };
   const select: React.CSSProperties = {
     ...pill,
     padding: "5px 8px",
@@ -110,17 +106,35 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
   };
 
   return (
-    <section aria-label="From Cue" style={{ display: "flex", flexDirection: "column", gap: spacing.sm, paddingTop: spacing.sm }}>
-      <div>
-        <Text variant="label" tone="secondary">From Cue</Text>
-        <Text variant="caption" tone="tertiary" style={{ display: "block" }}>
-          Only you can see these. Link one to a project, or make it public when you want others to see it.
+    <section
+      aria-label="From Cue"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: spacing.sm,
+        background: colors.surface.primary,
+        border: `1px solid ${colors.border.subtle}`,
+        borderRadius: radii.lg,
+        padding: spacing.base,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Text variant="label" tone="secondary">
+          From Cue
         </Text>
+        <span
+          role="img"
+          aria-label="Only you see this list"
+          title="Only you see this list"
+          style={{ display: "inline-flex", color: colors.text.tertiary }}
+        >
+          <Lock size={12} />
+        </span>
       </div>
 
       {groups.length === 0 && (
         <Text variant="bodySm" tone="tertiary">
-          Nothing yet. Projects appear here after your first <code>cue sync</code>.
+          Nothing yet · <code>cue sync</code>
         </Text>
       )}
 
@@ -142,38 +156,51 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 140 }}>
-                <Text variant="bodySm" weight={700}>{group.name}</Text>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {linked && (
+                    <span
+                      role="img"
+                      aria-label={isPublic ? "Public" : "Only you"}
+                      title={isPublic ? "Public" : "Only you"}
+                      style={{ display: "inline-flex", color: isPublic ? colors.tint.success : colors.text.tertiary }}
+                    >
+                      {isPublic ? <Globe size={13} /> : <Lock size={13} />}
+                    </span>
+                  )}
+                  <Text variant="bodySm" weight={700}>
+                    {group.name}
+                  </Text>
+                </span>
                 <Text variant="caption" tone="tertiary" style={{ display: "block" }}>
-                  {linked ? `in ${linked.name} · ` : ""}{where}
+                  {linked ? `→ ${linked.name} · ` : ""}
+                  {where}
                 </Text>
               </div>
 
               {linked ? (
                 <>
-                  <span
-                    style={{ ...pill, cursor: "default", border: "none", color: isPublic ? colors.tint.success : colors.text.tertiary }}
-                  >
-                    {isPublic ? <Globe size={13} /> : <Lock size={13} />}
-                    {isPublic ? "Public" : "Only you"}
-                  </span>
                   {isPublic ? (
                     <button
+                      className="ui-press"
                       style={pill}
                       disabled={busy}
-                      onClick={() => void run(setProjectVisibility(linked.id, false), `${linked.name} is private again.`)}
+                      onClick={() => void run(setProjectVisibility(linked.id, false), `${linked.name} is private.`)}
                     >
                       Make private
                     </button>
                   ) : (
-                    <button style={pill} disabled={busy} onClick={() => setConfirming(group.id)}>
+                    <button className="ui-press" style={pill} disabled={busy} onClick={() => setConfirming(group.id)}>
                       Make public…
                     </button>
                   )}
                   <button
+                    className="ui-press"
                     style={pill}
                     disabled={busy}
                     aria-label={`Unlink ${group.name}`}
-                    onClick={() => void run(mapCueProject(first(group).device_id, first(group).project_key, null), `${group.name} unlinked.`)}
+                    onClick={() =>
+                      void run(mapCueProject(first(group).device_id, first(group).project_key, null), `${group.name} unlinked.`)
+                    }
                   >
                     Unlink
                   </button>
@@ -182,7 +209,8 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
                 <>
                   {suggestion && (
                     <button
-                      style={{ ...pill, color: colors.text.skillhive, borderColor: colors.surface.skillhive }}
+                      className="ui-press"
+                      style={primaryPill}
                       disabled={busy}
                       onClick={() =>
                         void run(
@@ -196,6 +224,7 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
                   )}
                   {!suggestion && (
                     <button
+                      className="ui-press"
                       style={pill}
                       disabled={busy}
                       onClick={() =>
@@ -203,7 +232,7 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
                           createProjectFromCue(first(group).device_id, first(group).project_key).then((result) =>
                             result.ok ? { ok: true as const } : result,
                           ),
-                          `${group.name} is now a project. Only you can see it.`,
+                          `${group.name} is now a private project.`,
                         )
                       }
                     >
@@ -229,7 +258,9 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
                       >
                         <option value="">Add to…</option>
                         {projects.map((project) => (
-                          <option key={project.id} value={project.id}>{project.name}</option>
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -242,6 +273,7 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
               <div
                 role="group"
                 aria-label={`Make ${linked.name} public`}
+                className="ui-rise"
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -251,19 +283,48 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
                   background: colors.bg.muted,
                 }}
               >
-                <Text variant="caption" tone="secondary">
-                  Everyone will see <b>{linked.name}</b>, its coding time and its languages. Your repository address
-                  and the folders you work in stay private.
-                </Text>
+                {/* What visitors will see, then what stays hidden. */}
+                <div
+                  role="note"
+                  aria-label="Visitors see"
+                  style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", color: colors.text.secondary }}
+                >
+                  <Eye size={13} aria-hidden="true" />
+                  <Text variant="caption" weight={700}>
+                    {linked.name}
+                  </Text>
+                  <Text variant="caption" tone="secondary">
+                    · {formatDuration(group.total_seconds)} · languages
+                  </Text>
+                </div>
+                {group.remote && (
+                  <div
+                    role="note"
+                    aria-label="Stays hidden"
+                    style={{ display: "flex", alignItems: "center", gap: 6, color: colors.text.tertiary, minWidth: 0 }}
+                  >
+                    <EyeOff size={13} aria-hidden="true" />
+                    <Text
+                      variant="caption"
+                      tone="tertiary"
+                      style={{ textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {group.remote}
+                    </Text>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: spacing.sm }}>
                   <button
-                    style={{ ...pill, color: colors.text.skillhive, borderColor: colors.surface.skillhive }}
+                    className="ui-press"
+                    style={primaryPill}
                     disabled={busy}
                     onClick={() => void run(setProjectVisibility(linked.id, true), `${linked.name} is public.`)}
                   >
                     Make public
                   </button>
-                  <button style={pill} onClick={() => setConfirming(null)}>Cancel</button>
+                  <button className="ui-press" style={pill} onClick={() => setConfirming(null)}>
+                    Cancel
+                  </button>
                 </div>
               </div>
             )}
@@ -272,14 +333,22 @@ export function CueProjectsPanel({ projects, onChanged }: Props) {
       })}
 
       {privateSeconds > 0 && (
-        <Text variant="caption" tone="tertiary">
-          Plus {formatDuration(privateSeconds)} this week in projects you keep on your computer. Their names never
-          leave it. Run <code>cue projects</code> there to see them, or <code>cue share &lt;project&gt;</code> to bring
-          one here.
-        </Text>
+        <span
+          title="Names stay on your computer. cue share <project> brings one here."
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: colors.text.tertiary }}
+        >
+          <HardDrive size={12} aria-hidden="true" />
+          <Text variant="caption" tone="tertiary">
+            +{formatDuration(privateSeconds)} private this week
+          </Text>
+        </span>
       )}
 
-      {message && <Text variant="caption" role="status" tone="secondary">{message}</Text>}
+      {message && (
+        <Text variant="caption" role="status" tone="secondary">
+          {message}
+        </Text>
+      )}
     </section>
   );
 }

@@ -333,12 +333,6 @@ html.dark body {
   background-color: var(--color-bg-canvas);
 }
 
-body.focus-mode .nav {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
 /* Loading indicators wait 300ms before appearing, so quick loads show nothing. */
 @keyframes delayed-fade-in {
   to {

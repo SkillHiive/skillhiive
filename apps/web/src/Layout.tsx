@@ -7,6 +7,7 @@ import { AuthGate } from "./components/AuthGate";
 import { ProfileProvider } from "./hooks/profileContext";
 import ConfirmProvider from "./components/ConfirmProvider";
 import ToastProvider from "./components/ToastProvider";
+import { FocusSessionProvider } from "./components/focus/FocusSessionProvider";
 import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
 import SEO from "./components/SEO";
@@ -17,6 +18,8 @@ const Sign = lazy(() => import("./pages/Sign"));
 const Register = lazy(() => import("./pages/Register"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Home = lazy(() => import("./pages/Home"));
+const Focus = lazy(() => import("./pages/Focus"));
+const Projects = lazy(() => import("./pages/Projects"));
 const Feed = lazy(() => import("./pages/Feed"));
 const Rooms = lazy(() => import("./pages/Rooms"));
 const Room = lazy(() => import("./pages/Room"));
@@ -93,6 +96,24 @@ function AppRoutes() {
             <AuthGate require="auth">
               <SEO />
               <Home />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/focus"
+          element={
+            <AuthGate require="auth">
+              <SEO customMeta={{ title: "Focus — SkillHiive", noIndex: true }} />
+              <Focus />
+            </AuthGate>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <AuthGate require="auth">
+              <SEO customMeta={{ title: "Projects — SkillHiive", noIndex: true }} />
+              <Projects />
             </AuthGate>
           }
         />
@@ -214,9 +235,12 @@ export default function App() {
     <ProfileProvider>
       <ConfirmProvider>
         <ToastProvider>
-          <ScrollToTop />
-          <Nav />
-          <AppRoutes />
+          {/* The focus session outlives any one page: the nav's timer chip and /focus share it. */}
+          <FocusSessionProvider>
+            <ScrollToTop />
+            <Nav />
+            <AppRoutes />
+          </FocusSessionProvider>
         </ToastProvider>
       </ConfirmProvider>
     </ProfileProvider>

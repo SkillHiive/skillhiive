@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeTab, hidesNav } from "./nav";
+import { activeTab, hidesNav, showsFocusChip } from "./nav";
 
 describe("activeTab", () => {
   it("maps each primary route to its tab", () => {
@@ -10,6 +10,7 @@ describe("activeTab", () => {
     expect(activeTab("/post/42")).toBe("feed");
     expect(activeTab("/profile")).toBe("you");
     expect(activeTab("/settings/trackers")).toBe("you");
+    expect(activeTab("/projects")).toBe("you");
   });
 
   it("counts your own public profile as You, and nobody else's", () => {
@@ -31,9 +32,22 @@ describe("activeTab", () => {
 });
 
 describe("hidesNav", () => {
-  it("hides the nav inside a live room only", () => {
+  it("hides the nav inside a live room and in focus only", () => {
     expect(hidesNav("/rooms/night-shift")).toBe(true);
+    expect(hidesNav("/focus")).toBe(true);
+    expect(hidesNav("/focus/")).toBe(true);
     expect(hidesNav("/rooms")).toBe(false);
     expect(hidesNav("/rooms/")).toBe(false);
+    expect(hidesNav("/home")).toBe(false);
+  });
+});
+
+describe("showsFocusChip", () => {
+  it("shows the timer while a session runs, anywhere but the focus page", () => {
+    expect(showsFocusChip("/home", true)).toBe(true);
+    expect(showsFocusChip("/feed", true)).toBe(true);
+    expect(showsFocusChip("/focus", true)).toBe(false);
+    expect(showsFocusChip("/focus/", true)).toBe(false);
+    expect(showsFocusChip("/home", false)).toBe(false);
   });
 });

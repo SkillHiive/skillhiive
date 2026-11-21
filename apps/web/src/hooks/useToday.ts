@@ -121,6 +121,26 @@ export function restoreToday(raw: string | null, today: string): TodayState {
   }
 }
 
+/**
+ * The tasks with the queued ones in the order of `ids` (a drag-and-drop result).
+ * Queued tasks missing from `ids` keep their place after the listed ones; unknown
+ * ids are ignored; done and carried tasks are untouched.
+ */
+export function orderQueue(tasks: TodayTask[], ids: string[]): TodayTask[] {
+  const queued = tasks.filter((t) => t.status === "queued");
+  const byId = new Map(queued.map((t) => [t.id, t]));
+  const ordered: TodayTask[] = [];
+  for (const id of ids) {
+    const t = byId.get(id);
+    if (t) {
+      ordered.push(t);
+      byId.delete(id);
+    }
+  }
+  for (const t of queued) if (byId.has(t.id)) ordered.push(t);
+  return [...ordered, ...tasks.filter((t) => t.status !== "queued")];
+}
+
 function loadState(): TodayState {
   if (typeof window === "undefined") return emptyState();
   try {
@@ -223,6 +243,10 @@ export function useToday() {
         ],
       };
     });
+  }, []);
+
+  const setQueueOrder = useCallback((ids: string[]) => {
+    setState((prev) => ({ ...prev, tasks: orderQueue(prev.tasks, ids) }));
   }, []);
 
   const completeTask = useCallback(
@@ -337,6 +361,7 @@ export function useToday() {
     removeTask,
     moveTask,
     reorderTask,
+    setQueueOrder,
     completeTask,
     carryTask,
     restoreTask,
@@ -345,12 +370,4 @@ export function useToday() {
     addCapture,
     removeCapture,
   };
-}
-
-export function formatMinutes(min: number): string {
-  if (min <= 0) return "0m";
-  if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }

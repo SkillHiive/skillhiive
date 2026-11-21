@@ -14,7 +14,9 @@ export function activeTab(pathname: string, myUsername?: string | null): NavTab 
   if (path === "/home" || path === "/review") return "today";
   if (path === "/rooms" || path.startsWith("/rooms/")) return "rooms";
   if (path === "/feed" || path.startsWith("/post/")) return "feed";
-  if (path === "/profile" || path === "/settings" || path.startsWith("/settings/")) return "you";
+  if (path === "/profile" || path === "/projects" || path === "/settings" || path.startsWith("/settings/")) {
+    return "you";
+  }
   if (myUsername) {
     let decoded = path;
     try {
@@ -27,7 +29,13 @@ export function activeTab(pathname: string, myUsername?: string | null): NavTab 
   return null;
 }
 
-/** A live room draws its own full-screen controls, so the app nav steps aside. */
+/** A live room and focus draw their own full-screen controls, so the app nav steps aside. */
 export function hidesNav(pathname: string): boolean {
-  return /^\/rooms\/[^/]+/.test(normalise(pathname));
+  const path = normalise(pathname);
+  return path === "/focus" || /^\/rooms\/[^/]+/.test(path);
+}
+
+/** The nav's focus timer chip shows while a session runs, except on the focus page itself. */
+export function showsFocusChip(pathname: string, sessionActive: boolean): boolean {
+  return sessionActive && normalise(pathname) !== "/focus";
 }

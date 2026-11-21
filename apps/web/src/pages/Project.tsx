@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
-import { Clock, FolderGit2 } from "lucide-react";
+import { Clock, FolderGit2, TriangleAlert } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { BackLink } from "@/components/ui/BackLink";
@@ -8,6 +8,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useProjectCodingTime, useTrackerConnection } from "@/hooks/useTimeTracker";
 import { CodingTimeBadge, LanguageBreakdown, WakatimeConnectCard } from "@/components/CodingTime";
 import { ProjectCueSources } from "@/components/CodingTime/ProjectCueSources";
+import { formatDuration } from "@/lib/timeTracker";
 import {
   fetchProjectSummary,
   fetchProjectShipped,
@@ -18,11 +19,7 @@ import {
 const FONT =
   '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
-function formatHours(minutes: number): string {
-  const h = minutes / 60;
-  if (h < 1) return `${minutes}m`;
-  return h >= 10 ? `${Math.round(h)}h` : `${h.toFixed(1)}h`;
-}
+const minutes = (min: number) => formatDuration(min * 60);
 
 export default function Project() {
   const { id } = useParams<{ id: string }>();
@@ -115,9 +112,10 @@ export default function Project() {
           gap: spacing.lg,
         }}
       >
+        {/* Owners came from their Projects list; visitors go to the owner's profile. */}
         <BackLink
-          to={summary.owner_username ? `/p/${encodeURIComponent(summary.owner_username)}` : "/home"}
-          label={summary.owner_username ? `@${summary.owner_username}` : "Home"}
+          to={isOwner ? "/projects" : summary.owner_username ? `/p/${encodeURIComponent(summary.owner_username)}` : "/home"}
+          label={isOwner ? "Projects" : summary.owner_username ? `@${summary.owner_username}` : "Home"}
           className="w-fit"
         />
 
@@ -193,7 +191,7 @@ export default function Project() {
         )}
 
         <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
-          <Stat label="focus" value={formatHours(summary.total_minutes)} />
+          <Stat label="focus" value={minutes(summary.total_minutes)} />
           <Stat label="sessions" value={String(summary.total_sessions)} />
           <Stat label="shipped" value={String(summary.shipped_count)} />
         </div>
@@ -234,13 +232,16 @@ export default function Project() {
                     {s.body}
                   </Text>
                   {s.blockers && (
-                    <Text variant="caption" style={{ color: colors.tint.warning }}>
-                      ⚠ {s.blockers}
-                    </Text>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: colors.tint.warning }}>
+                      <TriangleAlert size={12} aria-hidden="true" />
+                      <Text variant="caption" style={{ color: "inherit" }}>
+                        {s.blockers}
+                      </Text>
+                    </span>
                   )}
                 </div>
                 <Text variant="caption" tone="tertiary">
-                  {s.actual_min ? `${s.actual_min}m` : ""}
+                  {s.actual_min ? minutes(s.actual_min) : ""}
                 </Text>
               </div>
             ))

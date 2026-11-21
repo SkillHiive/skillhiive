@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { restoreToday, type TodayState, type TodayTask } from "./useToday";
+import { orderQueue, restoreToday, type TodayState, type TodayTask } from "./useToday";
 
 const task = (id: string, status: TodayTask["status"]): TodayTask => ({
   id,
@@ -90,5 +90,18 @@ describe("restoreToday", () => {
     expect(restoreToday(raw, "2026-11-20").carryFrom).toEqual([
       { id: "a", text: "task a", estimateMin: 45 },
     ]);
+  });
+});
+
+describe("orderQueue", () => {
+  const tasks = [task("a", "queued"), task("d", "done"), task("b", "queued"), task("c", "queued")];
+  const ids = (list: TodayTask[]) => list.map((t) => t.id);
+
+  it("puts the queued tasks in the dragged order and keeps the rest", () => {
+    expect(ids(orderQueue(tasks, ["c", "a", "b"]))).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("keeps queued tasks the order left out, and ignores unknown or finished ids", () => {
+    expect(ids(orderQueue(tasks, ["b", "zz", "d"]))).toEqual(["b", "a", "c", "d"]);
   });
 });
