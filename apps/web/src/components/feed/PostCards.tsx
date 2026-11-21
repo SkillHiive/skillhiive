@@ -1,9 +1,10 @@
 import React from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Briefcase, Handshake } from "lucide-react";
 import { Avatar, Text } from "@skillhiive/ui";
 import ActionRow from "@/components/ActionRow";
 import { timeAgo } from "@/lib/timeAgo";
+import { postSheetState } from "@/lib/postSheet";
 import { useTokens } from "@/theme";
 
 
@@ -202,13 +203,19 @@ interface CardProps {
   myId?: string | null;
   hideAuthor?: boolean;
   onOpen?: (id: string) => void;
+  /** Open the post in a sheet over this page (the feed) instead of as its own page. */
+  sheet?: boolean;
 }
 
-function useOpen(post: PostModel, onOpen?: (id: string) => void) {
+function useOpen(post: PostModel, onOpen?: (id: string) => void, sheet = false) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const to = `/post/${post.id}`;
   return {
-    open: () => (onOpen ? onOpen(post.id) : navigate(`/post/${post.id}`)),
-    comment: () => navigate(`/post/${post.id}`, { state: { focusComment: true } }),
+    open: () =>
+      onOpen ? onOpen(post.id) : navigate(to, sheet ? { state: postSheetState(location) } : undefined),
+    comment: () =>
+      navigate(to, { state: sheet ? postSheetState(location, { focusComment: true }) : { focusComment: true } }),
   };
 }
 
@@ -217,9 +224,9 @@ function Actions({ post, onComment }: { post: PostModel; onComment: () => void }
 }
 
 
-export function ProjectCard({ post, hideAuthor, onOpen }: CardProps) {
+export function ProjectCard({ post, hideAuthor, onOpen, sheet }: CardProps) {
   const { spacing } = useTokens();
-  const { open, comment } = useOpen(post, onOpen);
+  const { open, comment } = useOpen(post, onOpen, sheet);
   const pp = post.project_posts!;
   const status = STATUS_DOT[pp.status] ?? STATUS_DOT.active;
   const img = firstImage(post);
@@ -268,9 +275,9 @@ export function ProjectCard({ post, hideAuthor, onOpen }: CardProps) {
 }
 
 
-export function OfferCard({ post, hideAuthor, onOpen }: CardProps) {
+export function OfferCard({ post, hideAuthor, onOpen, sheet }: CardProps) {
   const { colors, spacing, radii } = useTokens();
-  const { open, comment } = useOpen(post, onOpen);
+  const { open, comment } = useOpen(post, onOpen, sheet);
   const op = post.offer_posts!;
   const typeLabel = op.offer_type ? OFFER_LABELS[op.offer_type] ?? op.offer_type : null;
   const caption = post.caption?.trim();
@@ -308,9 +315,9 @@ export function OfferCard({ post, hideAuthor, onOpen }: CardProps) {
 }
 
 
-export function MediaCard({ post, hideAuthor, onOpen }: CardProps) {
+export function MediaCard({ post, hideAuthor, onOpen, sheet }: CardProps) {
   const { spacing } = useTokens();
-  const { open, comment } = useOpen(post, onOpen);
+  const { open, comment } = useOpen(post, onOpen, sheet);
   const img = firstImage(post);
   const caption = post.caption?.trim();
 
@@ -327,9 +334,10 @@ export function MediaCard({ post, hideAuthor, onOpen }: CardProps) {
   );
 }
 
-export function PostCard({ post, myId = null, hideAuthor, onOpen }: CardProps) {
-  if (post.post_type === "project" && post.project_posts) return <ProjectCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
-  if (post.post_type === "offer" && post.offer_posts) return <OfferCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
+export function PostCard({ post, myId = null, hideAuthor, onOpen, sheet }: CardProps) {
+  const props = { post, myId, hideAuthor, onOpen, sheet };
+  if (post.post_type === "project" && post.project_posts) return <ProjectCard {...props} />;
+  if (post.post_type === "offer" && post.offer_posts) return <OfferCard {...props} />;
   // A plain update, or a post whose detail row is missing: still show what they wrote.
-  return <MediaCard post={post} myId={myId} hideAuthor={hideAuthor} onOpen={onOpen} />;
+  return <MediaCard {...props} />;
 }

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route, useNavigate, useParams, Navigate, useLocation, useNavigationType } from "react-router";
+import { lazy, Suspense, useEffect, useRef } from "react";
+import { Routes, Route, useNavigate, useParams, Navigate, useLocation, useNavigationType, type Location } from "react-router";
 import "./Layout.css";
 import Nav from "./components/Nav";
 import PageFallback from "./components/PageFallback";
@@ -11,6 +11,7 @@ import { FocusSessionProvider } from "./components/focus/FocusSessionProvider";
 import { useProfile } from "./hooks/useProfile";
 import { supabase } from "./lib/supabase";
 import SEO from "./components/SEO";
+import { useBackgroundLocation } from "./lib/postSheet";
 
 // Each page is its own chunk, so opening one page doesn't download all the others.
 const Landing = lazy(() => import("./pages/Landing"));
@@ -34,26 +35,37 @@ const CueLink = lazy(() => import("./pages/CueLink"));
 const Terms = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Terms })));
 const Privacy = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Privacy })));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const PostSheet = lazy(() => import("./components/post/PostSheet").then((m) => ({ default: m.PostSheet })));
 
-/** New pages open at the top; Back and Forward leave the browser to restore the position. */
-function ScrollToTop() {
-  const { pathname } = useLocation();
+/**
+ * New pages open at the top; Back and Forward leave the browser to restore the position.
+ * Opening or closing a post sheet isn't a new page: the page underneath stays where it was.
+ */
+function ScrollToTop({ pathname }: { pathname: string }) {
   const type = useNavigationType();
+  // Read, not depended on: opening a sheet changes the type but not the page.
+  const typeRef = useRef(type);
   useEffect(() => {
-    if (type !== "POP") window.scrollTo(0, 0);
-  }, [pathname, type]);
+    typeRef.current = type;
+  });
+  useEffect(() => {
+    if (typeRef.current !== "POP") window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
-function AppRoutes() {
+function AppRoutes({ background }: { background: Location | null }) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
 
   return (
     <Suspense fallback={<PageFallback />}>
       {/* Every page fades in the same way (index.css .ui-page). */}
-      <div key={pathname} className="ui-page">
-      <Routes>
+      {/* With a sheet open, the page underneath keeps rendering at its own location (same key, same
+          routes), so it isn't remounted and keeps its scroll position. Routes always gets an explicit
+          location: switching between passing one and not would change its tree and remount the page. */}
+      <div key={(background ?? location).pathname} className="ui-page">
+      <Routes location={background ?? location}>
         <Route
           path="/"
           element={
@@ -226,20 +238,37 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       </div>
+      {/* A post opened from the feed: a sheet over the page above (components/post/PostSheet.tsx). */}
+      {background && (
+        <Suspense fallback={null}>
+          <Routes>
+            <Route
+              path="/post/:postId"
+              element={
+                <AuthGate require="auth">
+                  <PostSheetWithSEO />
+                </AuthGate>
+              }
+            />
+          </Routes>
+        </Suspense>
+      )}
     </Suspense>
   );
 }
 
 export default function App() {
+  const location = useLocation();
+  const background = useBackgroundLocation();
   return (
     <ProfileProvider>
       <ConfirmProvider>
         <ToastProvider>
           {/* The focus session outlives any one page: the nav's timer chip and /focus share it. */}
           <FocusSessionProvider>
-            <ScrollToTop />
+            <ScrollToTop pathname={(background ?? location).pathname} />
             <Nav />
-            <AppRoutes />
+            <AppRoutes background={background} />
           </FocusSessionProvider>
         </ToastProvider>
       </ConfirmProvider>
@@ -267,6 +296,16 @@ function PostWithSEO() {
     <>
       <SEO dynamicParams={{ id: params.postId ?? "" }} />
       <Post />
+    </>
+  );
+}
+
+function PostSheetWithSEO() {
+  const params = useParams<{ postId: string }>();
+  return (
+    <>
+      <SEO dynamicParams={{ id: params.postId ?? "" }} />
+      <PostSheet />
     </>
   );
 }

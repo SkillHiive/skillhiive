@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { postSheetState } from "@/lib/postSheet";
 import { RefreshCw, UserPlus } from "lucide-react";
 import { Avatar } from "@skillhiive/ui";
 import { Skeleton } from "@/components/ui/States";
@@ -31,6 +32,8 @@ function profileHref(card: AllyCardModel): string {
 }
 
 function AllyCard({ card, now }: { card: AllyCardModel; now: number }) {
+  // A post opens as a sheet over the feed, like the timeline's cards.
+  const location = useLocation();
   const latest = card.latest;
   return (
     <article className={`ui-lift ${CARD} min-w-0 sm:flex-1`} aria-label={card.name}>
@@ -74,6 +77,7 @@ function AllyCard({ card, now }: { card: AllyCardModel; now: number }) {
         (latest.postId ? (
           <Link
             to={`/post/${latest.postId}`}
+            state={postSheetState(location)}
             className="line-clamp-2 text-[13px] leading-snug break-words text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
           >
             {latest.title}
