@@ -237,8 +237,14 @@ html.custom-cursor * {
     transform: none;
   }
 }
+/*
+ * fill-mode "backwards", not "both": the start state holds during a stagger delay,
+ * but nothing lingers after the animation. A lingering transform or opacity would
+ * make the element a containing block and stacking context, trapping any overlay
+ * inside it (a fixed dialog would sit under the nav and be clipped by its card).
+ */
 .ui-rise {
-  animation: ui-rise var(--dur-move) var(--ease-ui) both;
+  animation: ui-rise var(--dur-move) var(--ease-ui) backwards;
 }
 
 /* A small celebration for a single tap, e.g. the heart when you like a post. */
@@ -264,7 +270,7 @@ html.custom-cursor * {
   }
 }
 .ui-page {
-  animation: ui-page-in var(--dur-move) var(--ease-ui) both;
+  animation: ui-page-in var(--dur-move) var(--ease-ui) backwards;
 }
 
 /* Placeholders shaped like the content that is loading. */

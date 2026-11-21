@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { createPortal } from "react-dom";
 import { Check, X } from "lucide-react";
 import {
   PROFILE_IMAGE_ASPECT,
@@ -138,9 +139,11 @@ export function ImageCropDialog({
 
   const title = kind === "avatar" ? "Avatar" : "Banner";
 
-  return (
+  // Rendered on <body>, above the nav, so the banner's rounded corners and the
+  // page's layers can never clip or cover it.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/65 p-4"
+      className="fixed inset-0 z-[1250] flex items-center justify-center overflow-y-auto bg-black/65 p-4"
       onClick={() => !saving && onClose()}
       onKeyDown={onDialogKeyDown}
     >
@@ -241,6 +244,7 @@ export function ImageCropDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
