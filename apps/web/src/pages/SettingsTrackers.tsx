@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import { ArrowLeft, Check, Keyboard, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Keyboard, RefreshCw, Trash2 } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import SwipeLayout from "@/components/SwipeLayout";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/lib/confirm";
 import { CueCard } from "@/components/CodingTime/CueCard";
+import { fetchMyCueDevices } from "@/lib/cue";
 
 const FONT =
   '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -41,7 +42,6 @@ const PROVIDERS: Array<{
 ];
 
 export default function SettingsTrackers() {
-  const navigate = useNavigate();
   const confirm = useConfirm();
   const { colors, spacing, radii } = useTokens();
   const { connection, loading, refresh } = useTrackerConnection();
@@ -52,18 +52,45 @@ export default function SettingsTrackers() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [statsPublic, setStatsPublic] = useState<boolean | null>(null);
+  const [hasCueDevice, setHasCueDevice] = useState(false);
+  const [hasStats, setHasStats] = useState(false);
+  const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const [cueReloads, setCueReloads] = useState(0);
 
+  // The profile switch applies to all coding time, whatever its source, so it is read for everyone.
   useEffect(() => {
-    if (!connection) return;
+    let active = true;
     void (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      const stats = await fetchUserCodingTime(user.id);
+      const [stats, devices] = await Promise.all([fetchUserCodingTime(user.id), fetchMyCueDevices()]);
+      if (!active) return;
       setStatsPublic(stats?.is_public ?? false);
+      setHasStats(stats !== null);
+      setHasCueDevice(devices.some((device) => device.revoked_at === null));
     })();
-  }, [connection]);
+    return () => {
+      active = false;
+    };
+  }, [connection, cueReloads]);
+
+  const hasCodingSource = !!connection || hasCueDevice || hasStats;
+
+  async function handleVisibility(next: boolean) {
+    const previous = !!statsPublic;
+    setStatsPublic(next);
+    setVisibilityError(null);
+    setVisibilitySaving(true);
+    const ok = await setMyCodingStatsVisibility(next);
+    setVisibilitySaving(false);
+    if (!ok) {
+      setStatsPublic(previous);
+      setVisibilityError("Couldn't change that. Try again.");
+    }
+  }
 
   async function handleSave() {
     if (!apiKey.trim()) return;
@@ -137,32 +164,19 @@ export default function SettingsTrackers() {
             gap: spacing.base,
           }}
         >
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: colors.text.secondary,
-              fontFamily: "inherit",
-              fontSize: 14,
-              fontWeight: 600,
-              padding: 0,
-              width: "fit-content",
-            }}
-          >
-            <ArrowLeft size={18} />
-            Back
-          </button>
+          <BackLink to="/profile" label="Profile" />
 
           <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
             Coding time
           </Text>
 
-          <CueCard hasTracker={!!connection} onChanged={refresh} />
+          <CueCard
+            hasTracker={!!connection}
+            onChanged={() => {
+              refresh();
+              setCueReloads((count) => count + 1);
+            }}
+          />
 
           {loading ? (
             <Text variant="bodySm" tone="tertiary">
@@ -210,26 +224,6 @@ export default function SettingsTrackers() {
                   >
                     <Trash2 size={15} />
                   </button>
-                </div>
-              </Card>
-
-              <Card>
-                <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-                  <div style={{ flex: 1 }}>
-                    <Text variant="bodySm" weight={700} style={{ display: "block" }}>
-                      Show coding time on my profile
-                    </Text>
-                    <Text variant="caption" tone="tertiary">
-                      Projects have their own switch.
-                    </Text>
-                  </div>
-                  <Toggle
-                    checked={!!statsPublic}
-                    onChange={async (next) => {
-                      setStatsPublic(next);
-                      await setMyCodingStatsVisibility(next);
-                    }}
-                  />
                 </div>
               </Card>
             </>
@@ -327,6 +321,32 @@ export default function SettingsTrackers() {
             </details>
           )}
 
+          {hasCodingSource && statsPublic !== null && (
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
+                <div style={{ flex: 1 }}>
+                  <Text id="coding-public-label" variant="bodySm" weight={700} style={{ display: "block" }}>
+                    Show coding time on my profile
+                  </Text>
+                  <Text variant="caption" tone="tertiary">
+                    Projects have their own switch.
+                  </Text>
+                </div>
+                <Toggle
+                  checked={!!statsPublic}
+                  disabled={visibilitySaving}
+                  labelledBy="coding-public-label"
+                  onChange={(next) => void handleVisibility(next)}
+                />
+              </div>
+              {visibilityError && (
+                <Text variant="caption" role="alert" style={{ display: "block", marginTop: spacing.sm, color: colors.tint.danger }}>
+                  {visibilityError}
+                </Text>
+              )}
+            </Card>
+          )}
+
           {message && (
             <div role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Check size={14} color={colors.tint.success} />
@@ -376,9 +396,13 @@ function iconBtn(
 
 function Toggle({
   checked,
+  disabled,
+  labelledBy,
   onChange,
 }: {
   checked: boolean;
+  disabled?: boolean;
+  labelledBy?: string;
   onChange: (next: boolean) => void;
 }) {
   const { colors } = useTokens();
@@ -386,6 +410,8 @@ function Toggle({
     <button
       role="switch"
       aria-checked={checked}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{
         width: 40,
@@ -394,7 +420,7 @@ function Toggle({
         border: "none",
         background: checked ? colors.tint.success : colors.border.subtle,
         position: "relative",
-        cursor: "pointer",
+        cursor: disabled ? "wait" : "pointer",
         flexShrink: 0,
       }}
     >

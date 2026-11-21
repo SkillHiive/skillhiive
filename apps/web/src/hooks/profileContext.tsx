@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ProfileContext, type Profile } from "./useProfile";
+import { normalizeUsername, ProfileContext, profileErrorMessage, type Profile, type ProfileSaveResult } from "./useProfile";
 
 export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -8,19 +9,33 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
 
-  const create = useCallback(async (id: string, email: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert({ id, displayname: email.split("@")[0] })
-      .select(
-        "id, username, avatar, banner, bio, displayname, created_at, followers, following",
-      )
-      .single();
+  // The first sign-in after sign-up makes the row, from what Register put in the auth metadata.
+  const create = useCallback(async (user: User) => {
+    const email = user.email ?? "";
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const username = typeof meta["username"] === "string" ? normalizeUsername(meta["username"]) : "";
+    const displayname =
+      typeof meta["displayname"] === "string" && meta["displayname"].trim()
+        ? meta["displayname"].trim()
+        : email.split("@")[0];
+
+    const insert = (row: Record<string, unknown>) =>
+      supabase
+        .from("profiles")
+        .insert({ id: user.id, displayname, ...row })
+        .select(
+          "id, username, avatar, banner, bio, displayname, created_at, followers, following",
+        )
+        .single();
+
+    let { data, error } = await insert(username ? { username } : {});
+    // Someone took the username in the meantime: make the profile anyway, so it can be picked again in Settings.
+    if (error?.code === "23505" && username) ({ data, error } = await insert({}));
 
     if (!isMounted.current) return;
 
-    if (error) {
-      setError(error.message);
+    if (error || !data) {
+      setError(profileErrorMessage(error));
       return;
     }
 
@@ -66,9 +81,9 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
 
     if (fetchErr) {
       if (fetchErr.code === "PGRST116") {
-        await create(user.id, user.email ?? "");
+        await create(user);
       } else {
-        setError(fetchErr.message);
+        setError("Couldn't load your profile. Reload to try again.");
       }
     } else {
       setProfile({ ...data, email: user.email ?? "" });
@@ -98,25 +113,27 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const updateField = async (
     key: keyof Omit<Profile, "id" | "created_at" | "email">,
     value: string,
-  ): Promise<boolean> => {
-    if (!profile) return false;
+  ): Promise<ProfileSaveResult> => {
+    if (!profile) return { ok: false, error: "Your session ended. Sign in again, then retry." };
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ [key]: value })
-      .eq("id", profile.id)
-      .select()
-      .single();
+    const stored = key === "username" ? normalizeUsername(value) : value;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ [key]: stored })
+        .eq("id", profile.id)
+        .select()
+        .single();
 
-    if (error) {
-      console.error(error.message);
-      return false;
+      if (error) return { ok: false, error: profileErrorMessage(error) };
+    } catch (e) {
+      return { ok: false, error: profileErrorMessage(e instanceof Error ? { message: e.message } : null) };
     }
 
     if (isMounted.current)
-      setProfile((prev) => (prev ? { ...prev, [key]: value } : prev));
+      setProfile((prev) => (prev ? { ...prev, [key]: stored } : prev));
 
-    return true;
+    return { ok: true };
   };
 
   return (

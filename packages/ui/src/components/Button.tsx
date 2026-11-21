@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTokens } from "@skillhiive/brand";
 import { Text } from "./Text";
 
@@ -43,7 +43,6 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const { colors, radii, spacing, mode } = useTokens();
-  const [pressed, setPressed] = useState(false);
 
   const isPrimary = variant === "primary";
   const isSecondary = variant === "secondary";
@@ -105,10 +104,8 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => setPressed(false)}
-      onMouseLeave={() => setPressed(false)}
-      className={`transition-all duration-150 ease-out ${isPrimary ? 'active:shadow-sm' : ''} `}
+      // ui-press (apps/web/src/index.css): grow on hover, press down on click, like the nav.
+      className={`ui-press ${isPrimary ? 'active:shadow-sm' : ''} `}
       style={{
         height: HEIGHT[size],
         padding: `0 ${padX[size]}px`,
@@ -122,9 +119,8 @@ export function Button({
         gap: spacing.sm,
         width: fullWidth ? "100%" : undefined,
         cursor: disabled || loading ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : pressed ? 0.92 : 1,
+        opacity: disabled ? 0.5 : 1,
         fontFamily: "inherit",
-        outline: "none",
         ...style,
       }}
       {...rest}

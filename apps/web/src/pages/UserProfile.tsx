@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/States";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Clock, FolderGit2, Keyboard, Pencil } from "lucide-react";
@@ -107,17 +108,24 @@ export default function UserProfile() {
   const displayName = profile?.displayname ?? "—";
 
   if (loading) {
+    // Shaped like the profile, so nothing jumps when it arrives.
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: colors.bg.muted,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <MiniSpin big />
+      <div role="status" aria-label="Loading profile" style={{ minHeight: "100vh", background: colors.bg.muted, paddingTop: 96 }}>
+        <div style={{ maxWidth: 640, margin: "0 auto", padding: `0 ${spacing.base}px`, display: "flex", flexDirection: "column", gap: spacing.lg }}>
+          <div style={{ display: "flex", alignItems: "center", gap: spacing.base }}>
+            <Skeleton style={{ width: 72, height: 72, borderRadius: 999 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton style={{ height: 22, width: "45%" }} />
+              <Skeleton style={{ height: 14, width: "30%" }} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: spacing.sm }}>
+            <Skeleton style={{ height: 64 }} />
+            <Skeleton style={{ height: 64 }} />
+            <Skeleton style={{ height: 64 }} />
+          </div>
+          <Skeleton style={{ height: 140 }} />
+        </div>
       </div>
     );
   }
@@ -543,26 +551,5 @@ function Stat({ label, value }: { label: string; value: string }) {
         {label}
       </Text>
     </div>
-  );
-}
-
-function MiniSpin({ big }: { big?: boolean }) {
-  const { colors } = useTokens();
-  const s = big ? 24 : 16;
-  return (
-    <>
-      <style>{`@keyframes up-spin { to { transform: rotate(360deg); } }`}</style>
-      <span
-        style={{
-          width: s,
-          height: s,
-          border: `2px solid ${colors.border.subtle}`,
-          borderTopColor: colors.surface.skillhive,
-          borderRadius: "50%",
-          display: "inline-block",
-          animation: "up-spin 0.8s linear infinite",
-        }}
-      />
-    </>
   );
 }

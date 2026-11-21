@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { Clock, Flame, TrendingUp, RefreshCw, ExternalLink } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { useUserCodingStats } from "@/hooks/useTimeTracker";
 import { triggerSync, formatDuration, type UserCodingTime } from "@/lib/timeTracker";
-import { MiniHeatmap } from "./parts";
+import { Heatmap } from "@/components/ui/Heatmap";
 import { agentSharePercent, earlierHistoryNote, fetchUserCodingExtras, type CodingExtras } from "@/lib/cue";
 
 interface Props {
@@ -103,12 +104,16 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
             </span>
           </div>
           <Text variant="bodySm" tone="tertiary">
-            Connect Wakatime or Hackatime in Settings → Coding time. Your coding time is
-            auto-fetched from the tracker — no manual entry needed.
+            {stats
+              ? "Only you can see this. Turn on “Show coding time on my profile” to share it."
+              : "Link Cue or a tracker to count your coding time. It stays private until you share it."}
           </Text>
-          <Text variant="caption" tone="tertiary" style={{ display: "block", marginTop: spacing.xs }}>
-            Your data is private by default. Toggle visibility in Settings → Coding time.
-          </Text>
+          <Link
+            to="/settings/trackers"
+            style={{ display: "inline-block", marginTop: spacing.xs, fontSize: 13, fontWeight: 700, color: colors.surface.skillhive }}
+          >
+            Coding time settings
+          </Link>
         </div>
       );
     }
@@ -281,7 +286,13 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
             Activity (Last 12 Weeks)
           </Text>
           <div style={{ marginTop: spacing.sm }}>
-            <MiniHeatmap daily={stats.daily_breakdown} />
+            <Heatmap
+              data={stats.daily_breakdown.map((d) => ({ day: d.date, minutes: Math.round(d.seconds / 60), sessions: 1 }))}
+              weeks={12}
+              cellSize={9}
+              gap={2}
+              unitLabel="coding"
+            />
           </div>
         </div>
       )}

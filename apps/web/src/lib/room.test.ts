@@ -3,6 +3,8 @@ import {
   clockOffset,
   decodeCubicleMessage,
   encodeCubicleMessage,
+  lastClockOffset,
+  rememberClockOffset,
   serverNow,
 } from "./room";
 
@@ -24,6 +26,17 @@ describe("clockOffset", () => {
   it("moves a local time onto the server's clock", () => {
     expect(serverNow(4000, 10_000)).toBe(14_000);
     expect(serverNow(-250, 10_000)).toBe(9_750);
+  });
+});
+
+describe("remembered clock offset", () => {
+  it("keeps the last measured offset for the rooms list and ignores nonsense", () => {
+    rememberClockOffset(1500);
+    expect(lastClockOffset()).toBe(1500);
+    rememberClockOffset(Number.NaN);
+    expect(lastClockOffset()).toBe(1500);
+    rememberClockOffset(0);
+    expect(lastClockOffset()).toBe(0);
   });
 });
 

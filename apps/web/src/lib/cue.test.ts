@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("./supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from "./supabase";
-import { agentSharePercent, cueErrorMessage, earlierHistoryNote, fetchUserCodingExtras, formatCueSince, groupCueProjects, normalizeLinkCode, suggestedProject, summarizeComparison } from "./cue";
+import { agentSharePercent, CUE_UNREACHABLE, cueErrorMessage, earlierHistoryNote, fetchUserCodingExtras, formatCueSince, groupCueProjects, normalizeLinkCode, peekCueLink, suggestedProject, summarizeComparison } from "./cue";
 
 describe("normalizeLinkCode", () => {
   it("accepts the code however it was typed", () => {
@@ -70,6 +70,33 @@ describe("fetchUserCodingExtras", () => {
     expect((await fetchUserCodingExtras("u1"))?.cue_since).toBeNull();
     rpc.mockResolvedValueOnce({ data: [{ source: "tracker", agent_seconds: 0, cue_since: "soon" }], error: null } as never);
     expect((await fetchUserCodingExtras("u1"))?.cue_since).toBeNull();
+  });
+});
+
+describe("peekCueLink", () => {
+  const rpc = vi.mocked(supabase.rpc);
+
+  it("returns the waiting device", async () => {
+    rpc.mockResolvedValueOnce({ data: [{ device_name: "air", platform: "darwin-arm64", expires_at: "2026-11-16T12:10:00Z" }], error: null } as never);
+    expect(await peekCueLink("ABCD-2345")).toEqual({ ok: true, preview: { device_name: "air", platform: "darwin-arm64", expires_at: "2026-11-16T12:10:00Z" } });
+  });
+
+  it("tells an unknown code apart from a failed lookup", async () => {
+    rpc.mockResolvedValueOnce({ data: [], error: null } as never);
+    expect(await peekCueLink("ABCD-2345")).toEqual({ ok: true, preview: null });
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "TypeError: Failed to fetch", code: "" } } as never);
+    expect(await peekCueLink("ABCD-2345")).toEqual({ ok: false, error: CUE_UNREACHABLE });
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "upstream timeout", code: "57014" } } as never);
+    expect(await peekCueLink("ABCD-2345")).toEqual({ ok: false, error: CUE_UNREACHABLE });
+    rpc.mockRejectedValueOnce(new Error("socket hang up"));
+    expect(await peekCueLink("ABCD-2345")).toEqual({ ok: false, error: CUE_UNREACHABLE });
+  });
+
+  it("keeps the server answers a person can act on", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "not_authenticated", code: "P0001" } } as never);
+    const result = await peekCueLink("ABCD-2345");
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain("Sign in");
   });
 });
 

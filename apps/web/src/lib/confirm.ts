@@ -10,6 +10,8 @@ export interface ConfirmOptions {
   tone?: "danger" | "neutral";
   /** An unchecked box that widens the action, e.g. "Also delete its data". */
   option?: { label: string };
+  /** Closes the dialog as a "no" when aborted, e.g. an invite withdrawn while it is open. */
+  signal?: AbortSignal;
 }
 
 export type ConfirmFn = (options: ConfirmOptions) => Promise<{ checked: boolean } | null>;

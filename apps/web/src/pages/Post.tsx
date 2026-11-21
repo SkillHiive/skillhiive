@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useConfirm } from "@/lib/confirm";
 import { useNavigate, useParams, useLocation } from "react-router";
 import {
-  ArrowLeft,
   Send,
   Trash2,
   Pencil,
@@ -14,7 +13,9 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/useProfile";
 import { useTokens } from "@/theme";
-import { Text, Avatar, IconButton } from "@skillhiive/ui";
+import { Text, Avatar } from "@skillhiive/ui";
+import { BackLink } from "@/components/ui/BackLink";
+import { useToast } from "@/lib/toast";
 import ActionRow from "@/components/ActionRow";
 
 
@@ -201,6 +202,7 @@ export default function Post() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const toast = useToast();
   const location = useLocation();
   const { colors, spacing, radii } = useTokens();
   const { profile: myProfile } = useProfile();
@@ -217,6 +219,11 @@ export default function Post() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [editing, setEditing] = useState(false);
+  // Read by fetchAll and the poll, which mustn't overwrite what the owner is typing.
+  const editingRef = useRef(false);
+  useEffect(() => {
+    editingRef.current = editing;
+  }, [editing]);
   const [editCaption, setEditCaption] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -281,10 +288,12 @@ export default function Post() {
           : raw.offer_posts) as PostDetail["offer_posts"],
       };
       setPost(normalized);
-      setEditCaption(normalized.caption ?? "");
-      if (normalized.project_posts) {
-        setEditTitle(normalized.project_posts.title ?? "");
-        setEditDesc(normalized.project_posts.description ?? "");
+      if (!editingRef.current) {
+        setEditCaption(normalized.caption ?? "");
+        if (normalized.project_posts) {
+          setEditTitle(normalized.project_posts.title ?? "");
+          setEditDesc(normalized.project_posts.description ?? "");
+        }
       }
     }
 
@@ -303,7 +312,7 @@ export default function Post() {
 
   useEffect(() => {
     pollRef.current = setInterval(() => {
-      fetchAllRef.current?.();
+      if (!editingRef.current) fetchAllRef.current?.();
     }, 8000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -369,8 +378,13 @@ export default function Post() {
       confirmLabel: "Delete post",
     });
     if (!ok) return;
-    await supabase.from("posts").delete().eq("id", postId);
-    navigate(-1);
+    const { error: deleteError } = await supabase.from("posts").delete().eq("id", postId);
+    if (deleteError) {
+      toast("Couldn't delete the post. Try again.", { tone: "error" });
+      return;
+    }
+    toast("Post deleted");
+    navigate("/feed", { replace: true });
   }
 
   async function saveEdits() {
@@ -424,18 +438,7 @@ export default function Post() {
         }}
       >
         <Text tone="tertiary">{error ?? "Post not found."}</Text>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          <Text tone="tint" weight={600}>
-            Go back
-          </Text>
-        </button>
+        <BackLink to="/feed" label="Feed" />
       </div>
     );
   }
@@ -468,24 +471,25 @@ export default function Post() {
         minHeight: "100vh",
         background: colors.bg.muted,
         fontFamily: FONT,
-        padding: "24px 20px",
+        padding: "88px 20px 24px",
       }}
     >
-      {/* ── HEADER ── */}
+      {/* ── HEADER ── Back for everyone; edit and delete for the owner. Sits below the fixed nav. */}
       <div
         style={{
           position: "sticky",
-          top: 0,
+          top: 72,
           zIndex: 10,
           display: "flex",
           alignItems: "center",
-          justifyContent: "end",
+          justifyContent: "space-between",
           gap: spacing.sm,
           padding: `${spacing.md}px ${spacing.base}px`,
           background: colors.bg.muted,
           borderBottom: `1px solid ${colors.border.subtle}`,
         }}
       >
+        <BackLink to="/feed" label="Feed" />
         {isOwner && !editing && (
           <div
             style={{ display: "flex", gap: spacing.sm, alignItems: "center" }}
@@ -600,9 +604,6 @@ export default function Post() {
               cursor: "pointer",
             }}
           >
-            <IconButton variant="primary" onClick={() => navigate(-1)} aria-label="Back">
-              <ArrowLeft size={22} strokeWidth={2} />
-            </IconButton>
             <div
             style={{
               background:

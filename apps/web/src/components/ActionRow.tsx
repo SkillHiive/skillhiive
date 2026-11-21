@@ -45,6 +45,14 @@ export default function ActionRow({
     };
   }, [postId, userId]);
 
+  // The count from the server wins whenever the post is refetched, unless a like is
+  // still on its way (then the optimistic count stays until it lands).
+  const [serverLikes, setServerLikes] = useState(likes);
+  if (likes !== serverLikes && !loading) {
+    setServerLikes(likes);
+    setLikeCount(likes);
+  }
+
   useEffect(() => {
     return () => {
       if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
@@ -135,7 +143,6 @@ export default function ActionRow({
         : active
           ? "rgba(239,68,68,0.10)"
           : "transparent",
-    transition: "background 0.15s, color 0.15s",
     fontFamily: "inherit",
   });
 
@@ -151,12 +158,15 @@ export default function ActionRow({
     >
       <button
         onClick={handleLike}
-        disabled={loading}
+        aria-pressed={liked}
+        aria-label={liked ? "Unlike" : "Like"}
         onMouseEnter={() => setHover("like")}
         onMouseLeave={() => setHover(null)}
-        style={{ ...pill(liked, "like"), opacity: loading ? 0.5 : 1 }}
+        className="ui-press"
+        style={pill(liked, "like")}
       >
-        <Heart size={16} fill={liked ? "#ef4444" : "none"} />
+        {/* Re-keyed on each change so the heart pops when you like it. */}
+        <Heart key={liked ? "on" : "off"} size={16} fill={liked ? "#ef4444" : "none"} className={liked ? "ui-pop" : undefined} />
         <span>{likeCount > 0 ? likeCount : "Like"}</span>
       </button>
 
@@ -167,6 +177,7 @@ export default function ActionRow({
         }}
         onMouseEnter={() => setHover("comment")}
         onMouseLeave={() => setHover(null)}
+        className="ui-press"
         style={pill(false, "comment")}
       >
         <MessageCircle size={16} />
@@ -178,8 +189,10 @@ export default function ActionRow({
       <div style={{ position: "relative" }}>
         <button
           onClick={handleShare}
+          aria-label="Copy link"
           onMouseEnter={() => setHover("share")}
           onMouseLeave={() => setHover(null)}
+          className="ui-press"
           style={{
             width: 30,
             height: 30,

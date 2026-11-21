@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router";
 import { Avatar, Text } from "@skillhiive/ui";
 import ActionRow from "@/components/ActionRow";
@@ -82,23 +82,24 @@ export function FeedCard({
   onPress?: () => void;
 }) {
   const { colors, radii, spacing } = useTokens();
-  const [pressed, setPressed] = useState(false);
   return (
     <div
       onClick={onPress}
-      onMouseDown={() => onPress && setPressed(true)}
-      onMouseUp={() => setPressed(false)}
-      onMouseLeave={() => setPressed(false)}
+      // The card opens the post; it's reachable by keyboard like a link.
+      tabIndex={onPress ? 0 : undefined}
+      onKeyDown={
+        onPress
+          ? (e) => {
+              if (e.key === "Enter" && e.target === e.currentTarget) onPress();
+            }
+          : undefined
+      }
+      className={`overflow-hidden border border-[var(--color-border-subtle)] shadow-[0_2px_6px_rgba(0,0,0,0.06)] ${onPress ? "ui-lift" : ""}`}
       style={{
         background: colors.surface.primary,
         borderRadius: radii.xl,
-        border: `1px solid ${colors.border.subtle}`,
-        overflow: "hidden",
         marginBottom: spacing.md,
-        boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
         cursor: onPress ? "pointer" : "default",
-        opacity: pressed ? 0.92 : 1,
-        transition: "opacity 0.12s",
       }}
     >
       {children}

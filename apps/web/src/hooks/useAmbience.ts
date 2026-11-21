@@ -24,8 +24,8 @@ function makeNoiseBuffer(ctx: AudioContext, brown: boolean): AudioBuffer {
 
 /**
  * Lightweight ambient soundscapes via Web Audio (rain / cafe murmur).
- * No external assets; synthesised locally. Respects autoplay by only
- * starting from an explicit user action.
+ * No external assets; synthesised locally. A saved choice is restored
+ * when the browser's autoplay policy allows it.
  */
 export function useAmbience() {
   const ctxRef = useRef<AudioContext | null>(null);
@@ -34,11 +34,10 @@ export function useAmbience() {
     gain: GainNode;
     filter: BiquadFilterNode;
   } | null>(null);
-  const [kind, setKind] = useState<AmbienceKind>(() => {
-    if (typeof window === "undefined") return "none";
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === "rain" || saved === "cafe" ? saved : "none";
-  });
+  // What is actually audible. A saved choice shows as active only once the
+  // browser lets it play (autoplay needs a user gesture).
+  const [kind, setKind] = useState<AmbienceKind>("none");
+  const cancelRestoreRef = useRef<(() => void) | null>(null);
 
   const stop = useCallback(() => {
     const nodes = nodesRef.current;
@@ -85,12 +84,14 @@ export function useAmbience() {
       source.start();
 
       nodesRef.current = { source, gain, filter };
+      return ctx;
     },
     [stop],
   );
 
   const setAmbience = useCallback(
     (next: AmbienceKind) => {
+      cancelRestoreRef.current?.();
       setKind(next);
       try {
         window.localStorage.setItem(STORAGE_KEY, next);
@@ -102,6 +103,49 @@ export function useAmbience() {
     },
     [start, stop],
   );
+
+  // Restore the saved choice. If the browser holds audio until a gesture,
+  // resume on the first one and only then show it as playing.
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (saved !== "rain" && saved !== "cafe") return;
+    const restored: Exclude<AmbienceKind, "none"> = saved;
+
+    let ctx: AudioContext;
+    try {
+      ctx = start(restored);
+    } catch {
+      return; // Web Audio unavailable
+    }
+    const gestures = ["click", "keydown", "touchend"] as const;
+    let active = true;
+    const cancel = () => {
+      if (!active) return;
+      active = false;
+      ctx.removeEventListener("statechange", show);
+      for (const g of gestures) window.removeEventListener(g, resume, true);
+      if (cancelRestoreRef.current === cancel) cancelRestoreRef.current = null;
+    };
+    function show() {
+      if (active && ctx.state === "running") {
+        setKind(restored);
+        cancel();
+      }
+    }
+    function resume() {
+      if (active) ctx.resume().then(show, () => {});
+    }
+    cancelRestoreRef.current = cancel;
+    ctx.addEventListener("statechange", show);
+    for (const g of gestures) window.addEventListener(g, resume, true);
+    ctx.resume().then(show, () => {});
+    return cancel;
+  }, [start]);
 
   useEffect(() => {
     return () => {

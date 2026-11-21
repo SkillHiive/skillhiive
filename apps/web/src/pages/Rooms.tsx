@@ -5,12 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { WorkRoomCard } from "@/components/ui/WorkRoomCard";
 import { Text, Button } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
-import {
-  computePhase,
-  FOCUS_MS,
-  BREAK_MS,
-  CYCLE_MS,
-} from "@/hooks/sessionPhase";
+import { lastClockOffset } from "@/lib/room";
 import { useActiveRooms } from "@/hooks/useActiveRooms";
 import { Plus } from "lucide-react";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -172,6 +167,8 @@ export default function Rooms() {
   const { colors, spacing } = useTokens();
   const { rooms, loading, error, retrying, retry } = useActiveRooms();
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Measured by the token server the last time a room was joined in this tab; 0 until then.
+  const [clockOffsetMs] = useState(lastClockOffset);
 
   const handleOpenSheet = useCallback(() => setSheetOpen(true), []);
   const handleCloseSheet = useCallback(() => setSheetOpen(false), []);
@@ -267,50 +264,26 @@ export default function Rooms() {
             name="No rooms yet"
             tag="Be the first"
             onStart={handleOpenSheet}
-            timerSeconds={0}
-            breakSeconds={0}
           />
         )}
 
         {/* Room cards */}
         {!loading &&
           rooms.map((room) => {
-            const phase = computePhase(room.session_started_at);
             const memberNames = room.participants.map(
               (p) => p.displayname || p.username,
             );
 
-            const sessionStartMs = room.session_started_at
-              ? new Date(room.session_started_at).getTime()
-              : undefined;
-
-            const elapsed = sessionStartMs ? Date.now() - sessionStartMs : 0;
-            const posInCycle = elapsed % CYCLE_MS;
-            const phaseStartedAt = sessionStartMs
-              ? Date.now() -
-                posInCycle +
-                (phase.phase === "break" ? FOCUS_MS : 0)
-              : undefined;
-
-            const phaseDurationMs =
-              phase.phase === "focus" ? FOCUS_MS : BREAK_MS;
-
             return (
               <WorkRoomCard
                 key={room.room_name}
-                state={
-                  phase.phase === "focus"
-                    ? "active"
-                    : phase.phase === "break"
-                      ? "break"
-                      : "empty"
-                }
+                state="live"
                 name={room.room_name}
                 tag={`${room.participant_count} joined`}
                 members={memberNames}
-                phaseStartedAt={phaseStartedAt}
+                sessionStartedAt={room.session_started_at}
+                clockOffsetMs={clockOffsetMs}
                 onJoin={() => handleJoinRoom(room.room_name)}
-                phaseDurationMs={phaseDurationMs}
               />
             );
           })}

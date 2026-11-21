@@ -15,6 +15,18 @@ export function serverNow(offset: number, localNow: number = Date.now()): number
   return localNow + offset;
 }
 
+let lastOffset = 0;
+
+/** Keep the offset the token server last gave us, so the rooms list can use the same clock. */
+export function rememberClockOffset(offset: number): void {
+  if (Number.isFinite(offset)) lastOffset = offset;
+}
+
+/** The last offset measured in this tab, or 0 before any room was joined. */
+export function lastClockOffset(): number {
+  return lastOffset;
+}
+
 export const CUBICLE_TOPIC = "cubicle";
 export const CUBICLE_ROOM_PATTERN = /^cub_[0-9a-f]{24}$/;
 

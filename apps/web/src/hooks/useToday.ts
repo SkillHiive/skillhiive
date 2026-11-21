@@ -65,32 +65,66 @@ function emptyState(): TodayState {
   return { date: todayKey(), tasks: [], carryFrom: [], captures: [] };
 }
 
-function loadState(): TodayState {
-  if (typeof window === "undefined") return emptyState();
+function toCarry(t: unknown): CarryTask | null {
+  if (!t || typeof t !== "object") return null;
+  const { id, text, estimateMin } = t as Partial<CarryTask>;
+  if (typeof id !== "string" || typeof text !== "string" || !text.trim()) {
+    return null;
+  }
+  return {
+    id,
+    text,
+    estimateMin: typeof estimateMin === "number" ? estimateMin : 30,
+  };
+}
+
+/**
+ * Restore the saved state for `today`. On a new day, everything unfinished
+ * carries forward: the last saved day's open tasks plus carry items that were
+ * never added or dismissed, so a skipped day loses nothing.
+ */
+export function restoreToday(raw: string | null, today: string): TodayState {
+  const empty: TodayState = {
+    date: today,
+    tasks: [],
+    carryFrom: [],
+    captures: [],
+  };
+  if (!raw) return empty;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return emptyState();
-    const parsed = JSON.parse(raw) as TodayState;
-    if (parsed?.date === todayKey()) {
+    const parsed = JSON.parse(raw) as Partial<TodayState> | null;
+    if (!parsed || typeof parsed !== "object") return empty;
+    const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    const carryFrom = Array.isArray(parsed.carryFrom) ? parsed.carryFrom : [];
+    if (parsed.date === today) {
       return {
-        date: todayKey(),
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-        carryFrom: Array.isArray(parsed.carryFrom) ? parsed.carryFrom : [],
+        date: today,
+        tasks,
+        carryFrom,
         captures: Array.isArray(parsed.captures) ? parsed.captures : [],
       };
     }
-    // Roll over: unfinished tasks from a previous day become carry-from.
-    const carried: CarryTask[] = (Array.isArray(parsed?.tasks)
-      ? parsed.tasks
-      : []
-    )
-      .filter((t: TodayTask) => t?.status !== "done")
-      .map((t: TodayTask) => ({
-        id: t.id,
-        text: t.text,
-        estimateMin: t.estimateMin,
-      }));
-    return { ...emptyState(), carryFrom: carried };
+    const seen = new Set<string>();
+    const carried: CarryTask[] = [];
+    for (const item of [
+      ...carryFrom,
+      ...tasks.filter((t: TodayTask) => t?.status !== "done"),
+    ]) {
+      const c = toCarry(item);
+      if (!c || seen.has(c.id)) continue;
+      seen.add(c.id);
+      carried.push(c);
+    }
+    return { ...empty, carryFrom: carried };
+  } catch {
+    return empty;
+  }
+}
+
+function loadState(): TodayState {
+  if (typeof window === "undefined") return emptyState();
+  try {
+    return restoreToday(window.localStorage.getItem(KEY), todayKey());
   } catch {
     return emptyState();
   }

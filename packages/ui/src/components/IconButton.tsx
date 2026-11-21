@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTokens } from "@skillhiive/brand";
 
 export interface IconButtonProps
@@ -25,7 +25,6 @@ export function IconButton({
   ...rest
 }: IconButtonProps) {
   const { colors } = useTokens();
-  const [pressed, setPressed] = useState(false);
 
   const bg =
     variant === "filled"
@@ -39,10 +38,7 @@ export function IconButton({
   return (
     <button
       disabled={disabled}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => setPressed(false)}
-      onMouseLeave={() => setPressed(false)}
-      className={`transition-all duration-150 ease-out ${variant === "primary" ? 'active:shadow-sm' : ''}`}
+      className={`ui-press ${variant === "primary" ? 'active:shadow-sm' : ''}`}
       style={{
         position: "relative",
         width: size,
@@ -55,7 +51,6 @@ export function IconButton({
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
-        transform: pressed ? "scale(0.9)" : "scale(1)",
         color: variant === "primary" ? colors.text.onTint : colors.text.primary,
         ...style,
       }}
