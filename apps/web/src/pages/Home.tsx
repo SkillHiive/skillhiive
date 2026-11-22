@@ -128,7 +128,7 @@ export default function Home() {
   }, []);
 
   const { profile } = useProfile();
-  // Wide screens get two zones: today's work, and a quiet rail for the Floor around you.
+  // Wide screens get two zones: today's work, and a quiet rail for the Space around you.
   const wide = useMediaQuery("(min-width: 960px)");
   const { rooms } = useActiveRooms();
   const shipped = useAllyShipped(profile?.id);
@@ -182,7 +182,7 @@ export default function Home() {
 
         {wide && (
           <aside
-            aria-label="The Floor"
+            aria-label="Space"
             style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: spacing.md }}
           >
             <RoomsCard rooms={rooms} clockOffsetMs={clockOffsetMs} />

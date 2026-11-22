@@ -376,7 +376,7 @@ export default function Feed() {
 
         {wide && (
           <aside
-            aria-label="The Floor"
+            aria-label="Space"
             className="pt-6"
             style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12 }}
           >

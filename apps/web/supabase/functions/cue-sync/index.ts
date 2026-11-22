@@ -7,7 +7,7 @@
 //   supabase functions deploy cue-sync --no-verify-jwt
 //
 // Environment: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (provided by Supabase)
-// and CUE_LINK_ORIGIN, the web origin that serves /link (e.g. https://skillhiive.com).
+// and CUE_LINK_ORIGIN, the web origin that serves /link (https://space.skillhiive.com).
 //
 // All request handling lives in ../_shared/cue-sync-core.ts; this file only
 // connects it to the database.
@@ -46,6 +46,7 @@ const store: CueSyncStore = {
           public_key: link.publicKey,
           device_name: link.deviceName,
           platform: link.platform,
+          machine_id: link.machineId,
           ip_hash: link.ipHash,
           expires_at: link.expiresAt,
         })
@@ -182,7 +183,7 @@ const store: CueSyncStore = {
 
 Deno.serve((request: Request) =>
   handleCueSync(request, store, {
-    webOrigin: Deno.env.get("CUE_LINK_ORIGIN") ?? "https://skillhiive.com",
+    webOrigin: Deno.env.get("CUE_LINK_ORIGIN") ?? "https://space.skillhiive.com",
     now: () => Date.now(),
   }),
 );

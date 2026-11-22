@@ -21,6 +21,7 @@ export const MAX_DEVICE_REQUESTS = 60;
 export const DEVICE_WINDOW_SECONDS = 600;
 const DAY_MS = 86_400_000;
 const PROJECT_KEY = /^p_[0-9a-f]{16}$/;
+const MACHINE_ID = /^[0-9a-fA-F]{64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const REMOTE = /^[a-z0-9.-]+\.[a-z]{2,}(\/[\w.~-]+)+$/i;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -85,6 +86,7 @@ export interface CueSyncStore {
     publicKey: string;
     deviceName: string;
     platform: string;
+    machineId: string | null;
     ipHash: string;
     expiresAt: string;
   }): Promise<string>;
@@ -191,13 +193,19 @@ function utcDate(ms: number): string {
 
 export function validateLinkStart(
   input: unknown,
-): Valid<{ publicKey: string; deviceName: string; platform: string; cueVersion: string }> {
+): Valid<{ publicKey: string; deviceName: string; platform: string; cueVersion: string; machineId: string | null }> {
   if (!isRecord(input)) return bad("", "The body must be a JSON object.");
   const keyBytes = typeof input["publicKey"] === "string" ? fromBase64(input["publicKey"]) : null;
   if (keyBytes === null || keyBytes.length !== 32) return bad("publicKey", "publicKey must be a base64 Ed25519 public key.");
   if (!isText(input["deviceName"], 80)) return bad("deviceName", "deviceName must be 1 to 80 characters.");
   if (!isText(input["platform"], 40)) return bad("platform", "platform must be 1 to 40 characters.");
   if (!isText(input["cueVersion"], 20)) return bad("cueVersion", "cueVersion must be 1 to 20 characters.");
+  // Optional: a hash of the machine's id, so linking the same machine again reuses its device.
+  // Old clients send none. 64 hex characters, stored lower case.
+  const rawMachine = input["machineId"] ?? null;
+  if (rawMachine !== null && (typeof rawMachine !== "string" || !MACHINE_ID.test(rawMachine))) {
+    return bad("machineId", "machineId must be 64 hex characters.");
+  }
   return {
     ok: true,
     value: {
@@ -205,6 +213,7 @@ export function validateLinkStart(
       deviceName: (input["deviceName"] as string).trim(),
       platform: (input["platform"] as string).trim(),
       cueVersion: input["cueVersion"] as string,
+      machineId: rawMachine === null ? null : (rawMachine as string).toLowerCase(),
     },
   };
 }
@@ -350,6 +359,7 @@ async function linkStart(request: Request, store: CueSyncStore, config: CueSyncC
     publicKey: parsed.value.publicKey,
     deviceName: parsed.value.deviceName,
     platform: parsed.value.platform,
+    machineId: parsed.value.machineId,
     ipHash,
     expiresAt: new Date(now + LINK_TTL_SECONDS * 1000).toISOString(),
   });
