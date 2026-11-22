@@ -1,31 +1,33 @@
-import { useEffect } from "react";
-import Lenis from "lenis";
-import Footer from "@/components/Footer";
-import Cursor from "@/components/Cursor";
-import Features from "./Features";
-import Hero from "./Hero";
-import SwipeLayout from "@/components/SwipeLayout";
-import { OpenSource } from "./OpenSource";
+import "@/components/landing/landing.css";
+import { LandingHero } from "@/components/landing/LandingHero";
+import {
+  CloseSection,
+  DoorsSection,
+  FloorSection,
+  LandingFooter,
+  LoopSection,
+  PromisesSection,
+  SidesSection,
+} from "@/components/landing/LandingSections";
 
-const Landing = () => {
-  // Smooth scrolling belongs to the long landing page only; app pages scroll natively.
-  useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const lenis = new Lenis({ autoRaf: true });
-    return () => lenis.destroy();
-  }, []);
-
+/**
+ * skillhiive.com: the hero video, then the loop (meet, work together, hand off, sleep, wake up
+ * ahead), Stager's two sides, the Floor rules, the promises with their proof, and the four doors.
+ * Always dark. Built to move to the separate site (apps/site) as it is.
+ */
+export default function Landing() {
   return (
-    <SwipeLayout>
-      <Cursor />
-      <div className="relative overflow-hidden p-0 m-0" style={{ width: "100%" }}>
-        <Hero />
-        <Features />
-        <OpenSource />
-        <Footer />
-      </div>
-    </SwipeLayout>
+    <div className="lp">
+      <LandingHero />
+      <main>
+        <LoopSection />
+        <SidesSection />
+        <FloorSection />
+        <PromisesSection />
+        <DoorsSection />
+        <CloseSection />
+      </main>
+      <LandingFooter />
+    </div>
   );
-};
-
-export default Landing;
+}

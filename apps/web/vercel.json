@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/cue/:path*", "destination": "https://database.linuxguy.tech/functions/v1/cue-sync/:path*" },
+    { "source": "/api/status", "destination": "https://status.skillhiive.com/api/status-page/heartbeat/skillhiive" },
     { "source": "/(.*)", "destination": "/" }
   ],
   "headers": [
