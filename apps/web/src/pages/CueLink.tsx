@@ -213,7 +213,7 @@ export default function CueLink() {
           gap: spacing.base,
         }}
       >
-        <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>Link Cue</Text>
+        <Text as="h1" variant="display">Link Cue</Text>
         {body}
         {error && (
           <Text variant="bodySm" role="alert" style={{ color: colors.tint.warning }}>{error}</Text>

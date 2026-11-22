@@ -136,7 +136,7 @@ export default function Project() {
             <FolderGit2 size={24} color={colors.surface.skillhive} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+            <Text as="h1" variant="display">
               {summary.name}
             </Text>
             {summary.owner_username && (

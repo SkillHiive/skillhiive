@@ -128,9 +128,9 @@ export default function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
-            className="absolute right-0 top-[calc(100%+10px)] z-[1100] max-h-[70vh] w-[340px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-3xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)] text-[var(--color-text-primary)] shadow-2xl"
+            className="absolute right-0 top-[calc(100%+10px)] z-[1100] max-h-[70vh] w-[340px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-3xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-primary)] text-[var(--color-text-primary)] shadow-2xl"
           >
-            <div className="sticky top-0 flex items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)] px-4 py-3">
+            <div className="sticky top-0 flex items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-primary)] px-4 py-3">
               <h2 className="text-base font-semibold">Notifications</h2>
               {pendingCount > 0 && (
                 <span className="rounded-full bg-[var(--color-tint-primary)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-onTint)]">
@@ -161,7 +161,7 @@ export default function NotificationBell() {
                 setOpen(false);
                 navigate("/notifications");
               }}
-              className="sticky bottom-0 w-full border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)] py-3 text-sm font-semibold text-[var(--color-text-primary)]"
+              className="sticky bottom-0 w-full border-t border-[var(--color-border-subtle)] bg-[var(--color-surface-primary)] py-3 text-sm font-semibold text-[var(--color-text-primary)]"
             >
               See all
             </button>

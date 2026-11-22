@@ -49,10 +49,11 @@ export const WorkRoomCard = memo(function WorkRoomCard({
         gap: spacing.md,
         padding: `${spacing.md}px ${spacing.base}px`,
         borderRadius: radii.lg,
-        border: `1px ${quiet ? "dashed" : "solid"} ${
+        // Every room is a real card: an empty one is still a door, not a dotted outline.
+        border: `1px solid ${
           phase.phase === "focus" ? `${colors.surface.skillhive}55` : onBreak ? `${colors.tint.success}55` : colors.border.subtle
         }`,
-        background: quiet ? "transparent" : colors.surface.primary,
+        background: colors.surface.primary,
         color: colors.text.primary,
         textAlign: "left",
         cursor: full ? "default" : "pointer",
@@ -88,7 +89,7 @@ export const WorkRoomCard = memo(function WorkRoomCard({
           }}
         >
           <span style={{ color: phase.phase === "focus" ? colors.text.skillhive : colors.text.secondary }}>
-            {quiet ? "quiet" : phase.phase}
+            {quiet ? "nobody in" : phase.phase}
           </span>
           {!quiet && phase.phase !== "waiting" && (
             <span style={{ fontVariantNumeric: "tabular-nums", color: colors.text.secondary }}>

@@ -129,10 +129,10 @@ export function StartCard({
         <Button label={`Start in ${room}`} size="lg" fullWidth icon={<Play size={18} />} onClick={startInRoom} />
       ) : (
         <Button
-          label={focusActive ? "Resume focus" : nextTask ? "Start focus" : "Plan first"}
+          label={focusActive ? "Resume focus" : nextTask ? "Start focus" : "Add a task to start"}
           size="lg"
           fullWidth
-          icon={<Play size={18} />}
+          icon={focusActive || nextTask ? <Play size={18} /> : undefined}
           disabled={!focusActive && !nextTask}
           onClick={onStartAlone}
         />

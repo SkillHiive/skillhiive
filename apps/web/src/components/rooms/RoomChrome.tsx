@@ -389,7 +389,7 @@ export function PeopleSheet({
               margin: `0 ${spacing.sm}px ${spacing.sm}px`,
               padding: spacing.sm,
               borderRadius: radii.xxl,
-              background: colors.bg.muted,
+              background: colors.surface.primary,
               border: `1px solid ${colors.border.subtle}`,
               boxSizing: "border-box",
             }}

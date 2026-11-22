@@ -63,10 +63,12 @@ export function Heatmap({
     const days = 7 * weeks;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Align start to a Sunday boundary for stable columns.
-    const start = new Date(today);
-    start.setDate(today.getDate() - (days - 1));
-    start.setDate(start.getDate() - start.getDay());
+    // Whole weeks ending on this week's Saturday, so the columns stay stable and today is
+    // always in the last one. Aligning the start instead used to cut the grid short of today.
+    const end = new Date(today);
+    end.setDate(today.getDate() + (6 - today.getDay()));
+    const start = new Date(end);
+    start.setDate(end.getDate() - (days - 1));
 
     const out: Cell[] = [];
     for (let i = 0; i < days; i++) {

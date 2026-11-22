@@ -167,7 +167,8 @@ export default function ActionRow({
         style={pill(liked, "like")}
       >
         {/* Re-keyed on each change so the heart pops when you like it. */}
-        <Heart key={liked ? "on" : "off"} size={15} fill={liked ? "#ef4444" : "none"} className={liked ? "ui-pop" : undefined} />
+        {/* Liked fills in the accent: the app has one accent, and red belongs to danger. */}
+        <Heart key={liked ? "on" : "off"} size={15} fill={liked ? colors.tint.primary : "none"} className={liked ? "ui-pop" : undefined} />
         {likeCount > 0 && <span>{likeCount}</span>}
       </button>
 

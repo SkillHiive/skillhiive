@@ -63,9 +63,9 @@ describe("WorkRoomCard", () => {
     expect((card as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("shows a standing room with nobody inside as quiet, ready to open", () => {
+  it("shows a standing room with nobody inside as empty, ready to open", () => {
     render(<WorkRoomCard name="writing" count={0} sessionStartedAt={null} />);
-    expect(screen.getByText("quiet")).toBeTruthy();
+    expect(screen.getByText("nobody in")).toBeTruthy();
     expect(screen.queryByText("0/12")).toBeNull();
     expect(screen.getByRole("button", { name: "Join writing" })).toBeTruthy();
   });

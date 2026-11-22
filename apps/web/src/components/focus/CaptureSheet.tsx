@@ -128,7 +128,7 @@ export function CaptureSheet({
               overflowY: "auto",
               boxSizing: "border-box",
               margin: `0 ${spacing.sm}px ${spacing.sm}px`,
-              background: colors.bg.muted,
+              background: colors.surface.primary,
               borderRadius: radii.xxl,
               border: `1px solid ${colors.border.subtle}`,
               padding: spacing.lg,

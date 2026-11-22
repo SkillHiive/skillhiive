@@ -250,7 +250,7 @@ export default function UserProfile() {
             </EditableImage>
 
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Text as="h1" variant="headline" weight={900} style={{ display: "block", letterSpacing: -0.5, overflowWrap: "anywhere" }}>
+              <Text as="h1" variant="display" style={{ display: "block", overflowWrap: "anywhere" }}>
                 {displayName}
               </Text>
               {profile.username && (

@@ -55,11 +55,12 @@ export function PostSheet() {
         <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
           <TransitionChild>
             <DialogPanel
-              className="flex h-[100dvh] w-full flex-col overflow-y-auto overscroll-contain bg-[var(--color-bg-muted)] text-[var(--color-text-primary)] shadow-2xl transition duration-[var(--dur-sheet)] ease-[var(--ease-ui)] data-[closed]:translate-y-full data-[leave]:duration-[var(--dur-hover)] motion-reduce:data-[closed]:translate-y-0 motion-reduce:data-[closed]:opacity-0 sm:h-auto sm:max-h-[90vh] sm:max-w-[680px] sm:rounded-3xl sm:border sm:border-[var(--color-border-subtle)] sm:data-[closed]:translate-y-4 sm:data-[closed]:opacity-0"
+              className="flex h-[100dvh] w-full flex-col overflow-y-auto overscroll-contain bg-[var(--color-surface-primary)] text-[var(--color-text-primary)] shadow-2xl transition duration-[var(--dur-sheet)] ease-[var(--ease-ui)] data-[closed]:translate-y-full data-[leave]:duration-[var(--dur-hover)] motion-reduce:data-[closed]:translate-y-0 motion-reduce:data-[closed]:opacity-0 sm:h-auto sm:max-h-[90vh] sm:max-w-[680px] sm:rounded-3xl sm:border sm:border-[var(--color-border-subtle)] sm:data-[closed]:translate-y-4 sm:data-[closed]:opacity-0"
               style={{ fontFamily: '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' }}
             >
               <DialogTitle className="sr-only">Post</DialogTitle>
-              <div className="px-4 pb-10 pt-[max(12px,env(safe-area-inset-top))] sm:px-6 sm:pt-4">
+              {/* The pinned header and reply box carry the top and bottom padding themselves. */}
+              <div className="px-4 sm:px-6">
                 <PostView key={postId} postId={postId} variant="sheet" focusComment={focusComment} onClose={close} onDeleted={close} />
               </div>
             </DialogPanel>

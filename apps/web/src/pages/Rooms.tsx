@@ -89,7 +89,7 @@ export default function Rooms() {
         >
         <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: spacing.sm }}>
-          <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+          <Text as="h1" variant="display">
             Rooms
           </Text>
 

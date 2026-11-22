@@ -91,6 +91,7 @@ export function CommentThread({
   onSend,
   onDelete,
   inputRef,
+  pinned = false,
 }: {
   comments: PostComment[];
   myId: string | null;
@@ -100,6 +101,8 @@ export function CommentThread({
   onDelete: (id: string) => void;
   /** The reply box, so the post can focus it. */
   inputRef?: RefObject<HTMLTextAreaElement | null>;
+  /** In the sheet: hold the reply box at the bottom, so replying never needs a scroll. */
+  pinned?: boolean;
 }) {
   const [text, setText] = useState("");
   const ownRef = useRef<HTMLTextAreaElement | null>(null);
@@ -145,7 +148,11 @@ export function CommentThread({
       )}
 
       <form
-        className="flex items-end gap-2.5"
+        className={`flex items-end gap-2.5 ${
+          pinned
+            ? "sticky bottom-0 -mx-4 bg-[var(--color-surface-primary)] px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6 sm:pb-5"
+            : ""
+        }`}
         onSubmit={(e) => {
           e.preventDefault();
           send();

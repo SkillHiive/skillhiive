@@ -107,7 +107,7 @@ export function PreJoin({ roomName, username, avatar, count, sessionStartedAt, c
       className="ui-page"
       style={{
         minHeight: "100dvh",
-        background: colors.bg.muted,
+        background: colors.surface.primary,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

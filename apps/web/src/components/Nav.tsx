@@ -7,6 +7,8 @@ import { activeTab, hidesNav, showsFocusChip } from "@/lib/nav";
 import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
 import { FocusTimerChip } from "./focus/FocusTimerChip";
+// The landing's logo file. It stays in apps/web when the landing moves to its own repo (G19).
+import logoFull from "@/assets/landing/logo-full.webp";
 
 type Tab = { id: string; to: string; label: string; icon: string };
 
@@ -79,6 +81,14 @@ const Nav = () => {
 
   return (
     <div className="nav pointer-events-none fixed left-0 top-[2%] z-[1000] flex w-full justify-center px-2 transition-ui">
+      {/* The mark you watched assemble on the way in. Without it the brand stops at the door. */}
+      <Link
+        to={signedIn ? "/home" : "/"}
+        aria-label="SkillHiive home"
+        className="pointer-events-auto absolute left-6 top-1/2 hidden -translate-y-1/2 opacity-90 transition-ui hover:opacity-100 md:block"
+      >
+        <img src={logoFull} alt="SkillHiive" className="block h-6 w-auto" />
+      </Link>
       <div className="pointer-events-auto flex w-fit items-center justify-center gap-1 sm:gap-2 transition-ui">
         <nav
           aria-label="Primary"
