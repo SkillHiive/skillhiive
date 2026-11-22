@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { ArrowUp, ChevronDown, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,7 +13,11 @@ import { Segmented } from "@/components/ui/Segmented";
 import { EmptyState, Skeleton } from "@/components/ui/States";
 import SwipeLayout from "@/components/SwipeLayout";
 import { PostCard, type PostModel } from "@/components/feed/PostCards";
-import { AllyStrip } from "@/components/feed/AllyStrip";
+import { FloorLine, PeopleCard, RoomsCard } from "@/components/home/FloorRail";
+import { useActiveRooms } from "@/hooks/useActiveRooms";
+import { useFollowing } from "@/hooks/useFollowing";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { lastClockOffset } from "@/lib/room";
 import { Composer } from "@/components/feed/Composer";
 import { useTokens } from "@/theme";
 
@@ -62,6 +67,18 @@ function SkeletonTimeline() {
 
 export default function Feed() {
   const session = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // A draft handed over by leaving a room, read once; the history entry is cleared so a reload
+  // or going back doesn't open it again.
+  const [draft] = useState<string | null>(() => {
+    const d = (location.state as { draft?: unknown } | null)?.draft;
+    return typeof d === "string" && d.trim() ? d : null;
+  });
+  useEffect(() => {
+    if (draft !== null) navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { colors } = useTokens();
   const myId = session?.user.id ?? null;
 
@@ -229,6 +246,11 @@ export default function Feed() {
   const allyIds = useMemo(() => (authors ? authors.filter((id) => id !== myId) : null), [authors, myId]);
 
   const days = useMemo(() => groupByDay(posts), [posts]);
+  // Wide screens get the rail: open rooms, and the people you follow with their latest work.
+  const wide = useMediaQuery("(min-width: 960px)");
+  const { rooms } = useActiveRooms();
+  const following = useFollowing(wide ? allyIds : null);
+  const [clockOffsetMs] = useState(lastClockOffset);
 
   return (
     <SwipeLayout>
@@ -240,10 +262,20 @@ export default function Feed() {
           fontFamily: '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
         }}
       >
-        <main className="mx-auto w-full max-w-[640px] px-4 pb-[120px] pt-6">
-          {!error && <AllyStrip allyIds={allyIds} />}
+        <div
+          className="mx-auto w-full"
+          style={{
+            maxWidth: wide ? 1120 : 640,
+            padding: `0 ${wide ? 24 : 0}px`,
+            display: "grid",
+            gridTemplateColumns: wide ? "minmax(0, 1fr) 340px" : "minmax(0, 1fr)",
+            gap: wide ? 40 : 0,
+            alignItems: "start",
+          }}
+        >
+        <main className="w-full px-4 pb-[120px] pt-6" style={{ minWidth: 0, paddingLeft: wide ? 0 : undefined, paddingRight: wide ? 0 : undefined }}>
 
-          <Composer onPosted={onPosted} />
+          <Composer onPosted={onPosted} draft={draft} />
 
           <div className="mb-1">
             <Segmented
@@ -336,9 +368,23 @@ export default function Feed() {
                   <div className="h-px flex-1 bg-[var(--color-border-subtle)]" />
                 </div>
               )}
+              {/* The end of the Feed opens a door: people working right now. */}
+              {!hasMore && <FloorLine rooms={rooms} clockOffsetMs={clockOffsetMs} />}
             </div>
           )}
         </main>
+
+        {wide && (
+          <aside
+            aria-label="The Floor"
+            className="pt-6"
+            style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <RoomsCard rooms={rooms} clockOffsetMs={clockOffsetMs} />
+            {following && <PeopleCard people={following} />}
+          </aside>
+        )}
+        </div>
       </div>
     </SwipeLayout>
   );

@@ -3,9 +3,12 @@ import {
   clockOffset,
   decodeCubicleMessage,
   encodeCubicleMessage,
+  floorSummary,
   focusSecondsBetween,
   roomNameInput,
+  roomFact,
   roomSlug,
+  suggestRoom,
   lastClockOffset,
   rememberClockOffset,
   serverNow,
@@ -125,5 +128,54 @@ describe("room names", () => {
 
   it("stays within the server's length limit", () => {
     expect(roomSlug("x".repeat(100))).toHaveLength(63);
+  });
+});
+
+describe("floorSummary", () => {
+  it("counts rooms by phase and finds the next break", () => {
+    expect(
+      floorSummary([
+        { phase: "focus", remainingSeconds: 900 },
+        { phase: "focus", remainingSeconds: 300 },
+        { phase: "break", remainingSeconds: 200 },
+        { phase: "waiting", remainingSeconds: 0 },
+      ]),
+    ).toEqual({ open: 4, focus: 2, onBreak: 1, nextBreakSeconds: 300 });
+  });
+
+  it("has no next break when nobody is in focus", () => {
+    expect(floorSummary([{ phase: "break", remainingSeconds: 100 }]).nextBreakSeconds).toBeNull();
+    expect(floorSummary([])).toEqual({ open: 0, focus: 0, onBreak: 0, nextBreakSeconds: null });
+  });
+});
+
+describe("suggestRoom", () => {
+  it("prefers a room on break, then the focus room closest to its break, then deep-work", () => {
+    expect(
+      suggestRoom([
+        { name: "a", phase: "focus", remainingSeconds: 900 },
+        { name: "b", phase: "break", remainingSeconds: 300 },
+      ]),
+    ).toBe("b");
+    expect(
+      suggestRoom([
+        { name: "a", phase: "focus", remainingSeconds: 900 },
+        { name: "c", phase: "focus", remainingSeconds: 120 },
+      ]),
+    ).toBe("c");
+    expect(suggestRoom([{ name: "w", phase: "waiting", remainingSeconds: 0 }])).toBe("w");
+    expect(suggestRoom([])).toBe("deep-work");
+  });
+});
+
+describe("roomFact", () => {
+  it("splits the room line off a post written from a room", () => {
+    expect(roomFact("Cue sync docs\n\n52m in deep-work")).toEqual({ body: "Cue sync docs", duration: "52m", room: "deep-work" });
+    expect(roomFact("Shipped it\n\n1h 5m in late-night")?.duration).toBe("1h 5m");
+  });
+
+  it("leaves ordinary captions alone", () => {
+    expect(roomFact("I spent 52m in traffic")).toBeNull();
+    expect(roomFact("Notes\n52 minutes in deep-work")).toBeNull();
   });
 });

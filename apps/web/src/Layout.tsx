@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
-import { Routes, Route, useNavigate, useParams, Navigate, useLocation, useNavigationType, type Location } from "react-router";
+import { Routes, Route, useParams, Navigate, useLocation, useNavigationType, type Location } from "react-router";
 import "./Layout.css";
 import Nav from "./components/Nav";
 import PageFallback from "./components/PageFallback";
@@ -8,8 +8,8 @@ import { ProfileProvider } from "./hooks/profileContext";
 import ConfirmProvider from "./components/ConfirmProvider";
 import ToastProvider from "./components/ToastProvider";
 import { FocusSessionProvider } from "./components/focus/FocusSessionProvider";
+import { RoomCallProvider } from "./components/rooms/RoomCallProvider";
 import { useProfile } from "./hooks/useProfile";
-import { supabase } from "./lib/supabase";
 import SEO from "./components/SEO";
 import { useBackgroundLocation } from "./lib/postSheet";
 
@@ -55,7 +55,6 @@ function ScrollToTop({ pathname }: { pathname: string }) {
 }
 
 function AppRoutes({ background }: { background: Location | null }) {
-  const navigate = useNavigate();
   const location = useLocation();
 
   return (
@@ -206,7 +205,7 @@ function AppRoutes({ background }: { background: Location | null }) {
           element={
             <AuthGate require="auth">
               <SEO />
-              <Room supabase={supabase} onLeave={() => navigate("/rooms")} />
+              <Room />
             </AuthGate>
           }
         />
@@ -266,9 +265,12 @@ export default function App() {
         <ToastProvider>
           {/* The focus session outlives any one page: the nav's timer chip and /focus share it. */}
           <FocusSessionProvider>
-            <ScrollToTop pathname={(background ?? location).pathname} />
-            <Nav />
-            <AppRoutes background={background} />
+            {/* A room outlives its page too: it floats over the rest of the app until you leave. */}
+            <RoomCallProvider>
+              <ScrollToTop pathname={(background ?? location).pathname} />
+              <Nav />
+              <AppRoutes background={background} />
+            </RoomCallProvider>
           </FocusSessionProvider>
         </ToastProvider>
       </ConfirmProvider>

@@ -1,11 +1,12 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { Briefcase, Handshake } from "lucide-react";
+import { Briefcase, DoorOpen, Handshake } from "lucide-react";
 import { Avatar, Text } from "@skillhiive/ui";
 import ActionRow from "@/components/ActionRow";
 import { timeAgo } from "@/lib/timeAgo";
 import { postSheetState } from "@/lib/postSheet";
 import { useTokens } from "@/theme";
+import { MONO, roomFact } from "@/lib/room";
 
 
 export type ProjectStatus = "active" | "completed" | "paused";
@@ -170,10 +171,40 @@ function AuthorRow({ post, hideAuthor }: { post: PostModel; hideAuthor?: boolean
 
 /** The person's own words: the loudest thing on the card. */
 function Caption({ text }: { text: string }) {
+  const { colors, radii } = useTokens();
+  // Written from a room: the time and the room show as a tag that leads to the room.
+  const fact = roomFact(text);
   return (
-    <Text as="p" variant="bodyLg" numberOfLines={8} style={{ ...WRAP, margin: 0 }}>
-      {text}
-    </Text>
+    <>
+      {(fact ? fact.body : text) && (
+        <Text as="p" variant="bodyLg" numberOfLines={8} style={{ ...WRAP, margin: 0 }}>
+          {fact ? fact.body : text}
+        </Text>
+      )}
+      {fact && (
+        <Link
+          to={`/rooms/${encodeURIComponent(fact.room)}`}
+          onClick={(e) => e.stopPropagation()}
+          className="ui-press"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            marginTop: 8,
+            padding: "2px 10px",
+            borderRadius: radii.pill,
+            border: `1px solid ${colors.border.subtle}`,
+            color: colors.text.secondary,
+            fontFamily: MONO,
+            fontSize: 12,
+            textDecoration: "none",
+          }}
+        >
+          <DoorOpen size={12} aria-hidden="true" />
+          {fact.duration} in {fact.room}
+        </Link>
+      )}
+    </>
   );
 }
 

@@ -22,12 +22,15 @@ export function LeaveSheet({
   onChange,
   onStay,
   onLeave,
+  onPost,
 }: {
   draft: LeaveDraft | null;
   projects: Project[];
   onChange: (patch: Partial<Omit<LeaveDraft, "focusSeconds" | "people">>) => void;
   onStay: () => void;
   onLeave: () => void;
+  /** Save, leave, and open the Floor's composer with what shipped. Nothing is posted for you. */
+  onPost: () => void;
 }) {
   const { colors, radii, spacing } = useTokens();
   useEscape(draft !== null, onStay);
@@ -142,6 +145,11 @@ export function LeaveSheet({
               <div className="w-full sm:w-auto">
                 <Button label="Stay" variant="ghost" fullWidth onClick={onStay} />
               </div>
+              {draft.shipped.trim() && (
+                <div className="w-full sm:w-auto">
+                  <Button label="Save and post" variant="secondary" fullWidth onClick={onPost} />
+                </div>
+              )}
               <div className="w-full sm:w-auto">
                 <Button label="Save and leave" fullWidth onClick={onLeave} />
               </div>

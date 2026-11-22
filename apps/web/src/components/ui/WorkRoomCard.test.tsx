@@ -62,4 +62,17 @@ describe("WorkRoomCard", () => {
     expect(screen.getByText("full")).toBeTruthy();
     expect((card as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("shows a standing room with nobody inside as quiet, ready to open", () => {
+    render(<WorkRoomCard name="writing" count={0} sessionStartedAt={null} />);
+    expect(screen.getByText("quiet")).toBeTruthy();
+    expect(screen.queryByText("0/12")).toBeNull();
+    expect(screen.getByRole("button", { name: "Join writing" })).toBeTruthy();
+  });
+
+  it("marks a room on break as the moment to drop in", () => {
+    render(<WorkRoomCard name="R" count={2} sessionStartedAt={minutesAgo(55)} />);
+    expect(screen.getByText("break")).toBeTruthy();
+    expect(screen.getByText("mic open")).toBeTruthy();
+  });
 });

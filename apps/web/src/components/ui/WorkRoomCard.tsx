@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Mic } from "lucide-react";
 import { useTokens } from "@/theme";
 import { PhaseRing } from "@/components/rooms/PhaseRing";
 import { useServerPhase } from "@/hooks/useServerPhase";
@@ -31,6 +31,9 @@ export const WorkRoomCard = memo(function WorkRoomCard({
   const { colors, radii, spacing } = useTokens();
   const phase = useServerPhase(sessionStartedAt, clockOffsetMs);
   const full = count >= cap;
+  // A standing room with nobody in it: always there to start, quiet until someone does.
+  const quiet = count === 0;
+  const onBreak = phase.phase === "break";
 
   return (
     <button
@@ -46,8 +49,10 @@ export const WorkRoomCard = memo(function WorkRoomCard({
         gap: spacing.md,
         padding: `${spacing.md}px ${spacing.base}px`,
         borderRadius: radii.lg,
-        border: `1px solid ${phase.phase === "focus" ? `${colors.surface.skillhive}55` : colors.border.subtle}`,
-        background: colors.surface.primary,
+        border: `1px ${quiet ? "dashed" : "solid"} ${
+          phase.phase === "focus" ? `${colors.surface.skillhive}55` : onBreak ? `${colors.tint.success}55` : colors.border.subtle
+        }`,
+        background: quiet ? "transparent" : colors.surface.primary,
         color: colors.text.primary,
         textAlign: "left",
         cursor: full ? "default" : "pointer",
@@ -57,7 +62,7 @@ export const WorkRoomCard = memo(function WorkRoomCard({
         ...style,
       }}
     >
-      <PhaseRing phase={phase.phase} progress={phase.progress} size={44} stroke={4} />
+      <PhaseRing phase={quiet ? "waiting" : phase.phase} progress={phase.progress} size={44} stroke={4} />
 
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         <span
@@ -83,11 +88,18 @@ export const WorkRoomCard = memo(function WorkRoomCard({
           }}
         >
           <span style={{ color: phase.phase === "focus" ? colors.text.skillhive : colors.text.secondary }}>
-            {phase.phase}
+            {quiet ? "quiet" : phase.phase}
           </span>
-          {phase.phase !== "waiting" && (
+          {!quiet && phase.phase !== "waiting" && (
             <span style={{ fontVariantNumeric: "tabular-nums", color: colors.text.secondary }}>
               {clockLabel(phase.remainingSeconds)}
+            </span>
+          )}
+          {/* The break is when people talk: the moment to drop in. */}
+          {!quiet && onBreak && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: colors.tint.success }}>
+              <Mic size={12} aria-hidden="true" />
+              mic open
             </span>
           )}
         </span>
@@ -105,7 +117,7 @@ export const WorkRoomCard = memo(function WorkRoomCard({
           flexShrink: 0,
         }}
       >
-        {full ? "full" : `${count}/${cap}`}
+        {full ? "full" : quiet ? "" : `${count}/${cap}`}
         {!full && <ChevronRight size={16} aria-hidden="true" />}
       </span>
     </button>
