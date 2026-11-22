@@ -3,7 +3,6 @@ import type { MouseEvent } from "react";
 export const GITHUB_ORG_URL = "https://github.com/SkillHiive";
 export const PLATFORM_REPO_URL = "https://github.com/SkillHiive/skillhiive";
 export const LIVEKIT_REPO_URL = "https://github.com/SkillHiive/livekitSDK";
-export const MIGRATIONS_URL = "https://github.com/SkillHiive/skillhiive/tree/main/apps/web/supabase/migrations";
 export const STATUS_URL = "https://status.skillhiive.com";
 
 /** In-page links scroll to their section, smoothly unless reduced motion is asked for. */

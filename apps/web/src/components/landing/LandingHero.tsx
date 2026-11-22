@@ -5,6 +5,7 @@ import heroPoster from "@/assets/hero-poster.webp";
 import { useLandingProof } from "@/hooks/useLandingProof";
 import { BUILT_COMMITS, sinceLabel, statusLabel } from "@/lib/landing";
 import { GITHUB_ORG_URL, STATUS_URL, scrollToSection } from "./links";
+import logoFull from "@/assets/landing/logo-full.webp";
 
 /** The 10 MB background video plays only when nobody has asked for less motion or less data. */
 function shouldPlayVideo(): boolean {
@@ -35,7 +36,7 @@ function Proof() {
         <div>
           <dt>all systems</dt>
           <dd>
-            <a href={STATUS_URL} style={{ color: status.up === status.total ? "var(--lp-green)" : undefined }}>
+            <a href={STATUS_URL} style={{ color: status.up === status.total ? "var(--lp-live)" : undefined }}>
               {statusLabel(status)}
             </a>
           </dd>
@@ -65,17 +66,17 @@ export function LandingHero() {
 
       <nav className="lp-nav" aria-label="Site">
         <Link to="/" className="lp-brand">
-          SkillHiive
+          <img src={logoFull} alt="SkillHiive" />
         </Link>
         <span className="lp-nav-links">
-          <a className="wide" href="#loop" onClick={scrollToSection("loop")}>
-            the loop
+          <a className="wide" href="#space" onClick={scrollToSection("space")}>
+            the space
           </a>
-          <a className="wide" href="#stager" onClick={scrollToSection("stager")}>
-            stager
+          <a className="wide" href="#out" onClick={scrollToSection("out")}>
+            kept out
           </a>
-          <a className="wide" href="#open" onClick={scrollToSection("open")}>
-            open source
+          <a className="wide" href="#coming" onClick={scrollToSection("coming")}>
+            coming
           </a>
           <Link to="/login" style={{ color: "var(--lp-t1)" }}>
             log in
@@ -93,13 +94,16 @@ export function LandingHero() {
             <br />
             to work.
           </h1>
-          <p className="lp-motto">Work, but don't forget to be human.</p>
+          <p className="lp-motto">
+            <span>People to work beside. Quiet to focus.</span>
+            <span>Proof of everything you make.</span>
+          </p>
           <div className="lp-actions">
             <Link to="/register" className="lp-btn primary ui-press">
-              Join the Floor <span aria-hidden="true">→</span>
+              Make your space <span aria-hidden="true">→</span>
             </Link>
-            <a href="#loop" onClick={scrollToSection("loop")} className="lp-btn ghost ui-press">
-              See how it works
+            <a href="#space" onClick={scrollToSection("space")} className="lp-btn ghost ui-press">
+              Look inside
             </a>
           </div>
         </div>
