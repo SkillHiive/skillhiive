@@ -1,31 +1,25 @@
-import { useEffect } from "react";
-import Lenis from "lenis";
-import Footer from "@/components/Footer";
-import Cursor from "@/components/Cursor";
-import Features from "./Features";
-import Hero from "./Hero";
-import SwipeLayout from "@/components/SwipeLayout";
-import { OpenSource } from "./OpenSource";
+import "@/components/landing/landing.css";
+import { LandingHero } from "@/components/landing/LandingHero";
+import { SpaceScene } from "@/components/landing/SpaceScene";
+import { ComingSection, CloseSection, KeptOutSection, LandingFooter } from "@/components/landing/LandingSections";
 
-const Landing = () => {
-  // Smooth scrolling belongs to the long landing page only; app pages scroll natively.
-  useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const lenis = new Lenis({ autoRaf: true });
-    return () => lenis.destroy();
-  }, []);
-
+/**
+ * skillhiive.com: the hero video, then "They want you to stay. We want you to finish. This is a space.": the feed's
+ * noise scatters and your space settles in as a floor plan (rooms, cubicle, break room, desk,
+ * wall). Then what is kept out, what is coming, and an invitation to make your space. Always dark.
+ * Built to move to the separate site (apps/site) as it is.
+ */
+export default function Landing() {
   return (
-    <SwipeLayout>
-      <Cursor />
-      <div className="relative overflow-hidden p-0 m-0" style={{ width: "100%" }}>
-        <Hero />
-        <Features />
-        <OpenSource />
-        <Footer />
-      </div>
-    </SwipeLayout>
+    <div className="lp">
+      <LandingHero />
+      <main>
+        <SpaceScene />
+        <KeptOutSection />
+        <ComingSection />
+        <CloseSection />
+      </main>
+      <LandingFooter />
+    </div>
   );
-};
-
-export default Landing;
+}

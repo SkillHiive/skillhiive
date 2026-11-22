@@ -32,7 +32,8 @@ describe("activeTab", () => {
 });
 
 describe("hidesNav", () => {
-  it("hides the nav inside a live room and in focus only", () => {
+  it("hides the nav on the landing page, inside a live room and in focus only", () => {
+    expect(hidesNav("/")).toBe(true);
     expect(hidesNav("/rooms/night-shift")).toBe(true);
     expect(hidesNav("/focus")).toBe(true);
     expect(hidesNav("/focus/")).toBe(true);

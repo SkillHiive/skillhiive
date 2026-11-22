@@ -29,10 +29,13 @@ export function activeTab(pathname: string, myUsername?: string | null): NavTab 
   return null;
 }
 
-/** A live room and focus draw their own full-screen controls, so the app nav steps aside. */
+/**
+ * A live room and focus draw their own full-screen controls, and the landing page has its own
+ * header, so the app nav steps aside.
+ */
 export function hidesNav(pathname: string): boolean {
   const path = normalise(pathname);
-  return path === "/focus" || /^\/rooms\/[^/]+/.test(path);
+  return path === "/" || path === "/focus" || /^\/rooms\/[^/]+/.test(path);
 }
 
 /** The nav's focus timer chip shows while a session runs, except on the focus page itself. */

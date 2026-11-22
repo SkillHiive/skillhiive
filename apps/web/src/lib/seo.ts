@@ -28,8 +28,8 @@ export type PageMeta = {
 
 export const routeMeta: Record<string, PageMeta> = {
   "/": {
-    title: "SkillHiive — Presence Over Performance",
-    description: "A developer collaboration platform built for presence, not performance. No algorithms. No leaderboards. Just intentional work with allies. Open source by commitment.",
+    title: "SkillHiive: a place to work",
+    description: "Meet builders around real work, work beside them in live rooms, and keep your work moving while you sleep. Open source, no trackers, no ads.",
     path: "/",
     ogType: "website",
     jsonLd: [
@@ -39,55 +39,14 @@ export const routeMeta: Record<string, PageMeta> = {
         name: "SkillHiive",
         url: "https://skillhiive.com",
         logo: "https://skillhiive.com/logo.png",
-        sameAs: [
-          "https://github.com/SkillHiive",
-          "https://twitter.com/skillhiive",
-        ],
-        description: "A developer collaboration platform built for presence, not performance. No algorithms. No leaderboards. Just intentional work with allies.",
+        sameAs: ["https://github.com/SkillHiive"],
+        description: "A place to work. Builders meet real people, work beside them, and keep their work moving while they sleep.",
       },
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
         name: "SkillHiive",
         url: "https://skillhiive.com",
-        potentialAction: {
-          "@type": "SearchAction",
-          target: {
-            "@type": "EntryPoint",
-            urlTemplate: "https://skillhiive.com/search?q={search_term_string}",
-          },
-          "query-input": "required name=search_term_string",
-        },
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: "What is SkillHiive?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "SkillHiive is a developer collaboration platform built for presence, not performance. No algorithms, no leaderboards, no performance to keep up — just intentional work with allies you choose.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Is SkillHiive open source?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Yes. SkillHiive is developed transparently. The web client, mobile app, and backend services are all public on GitHub under the SkillHiive organization.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "How is SkillHiive different from other platforms?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Most platforms optimize for engagement and time spent. SkillHiive optimizes for presence and intentional collaboration. No infinite feeds, no algorithmic sorting, no follower counts — just people who chose each other.",
-            },
-          },
-        ],
       },
     ],
   },
@@ -100,7 +59,7 @@ export const routeMeta: Record<string, PageMeta> = {
   },
   "/register": {
     title: "Join SkillHiive — Create Your Account",
-    description: "Join SkillHiive — a developer collaboration platform built for presence over performance. No algorithms, no leaderboards, just intentional work with allies.",
+    description: "Join SkillHiive, a place to work: real people, real work, live rooms. Free to belong, no trackers, no ads.",
     path: "/register",
     ogType: "website",
   },
