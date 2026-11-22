@@ -73,6 +73,7 @@ describe("LeaveSheet", () => {
         onChange={onChange}
         onStay={() => {}}
         onLeave={onLeave}
+        onPost={() => {}}
       />,
     );
     expect(screen.getByRole("dialog", { name: "Leave the room" })).toBeTruthy();
@@ -80,7 +81,25 @@ describe("LeaveSheet", () => {
     const user = userEvent.setup();
     await user.type(screen.getByRole("textbox"), "x");
     expect(onChange).toHaveBeenCalledWith({ shipped: "x" });
+    // Nothing shipped yet: there is nothing to post.
+    expect(screen.queryByRole("button", { name: "Save and post" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save and leave" }));
     expect(onLeave).toHaveBeenCalledOnce();
+  });
+
+  it("offers to post once something shipped", async () => {
+    const onPost = vi.fn();
+    render(
+      <LeaveSheet
+        draft={{ focusSeconds: 30 * 60, people: 2, shipped: "Cue sync docs", projectId: "" }}
+        projects={[]}
+        onChange={() => {}}
+        onStay={() => {}}
+        onLeave={() => {}}
+        onPost={onPost}
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Save and post" }));
+    expect(onPost).toHaveBeenCalledOnce();
   });
 });

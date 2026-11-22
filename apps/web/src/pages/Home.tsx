@@ -7,10 +7,8 @@ import {
   Circle,
   Clock,
   CornerDownLeft,
-  Flame,
   FolderGit2,
   GripVertical,
-  Play,
   Plus,
   RotateCcw,
   Sparkles,
@@ -28,6 +26,12 @@ import { useFocusSession } from "@/hooks/useFocusSession";
 import { Skeleton } from "@/components/ui/States";
 import { formatDuration } from "@/lib/timeTracker";
 import { heroTask } from "@/lib/focusSession";
+import { lastClockOffset } from "@/lib/room";
+import { useActiveRooms } from "@/hooks/useActiveRooms";
+import { useAllyShipped } from "@/hooks/useAllyShipped";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { FloorLine, RailCard, RoomsCard, ShippedCard, ShippedLine } from "@/components/home/FloorRail";
+import { StartCard } from "@/components/home/StartCard";
 import { fetchWeekCoding, fetchWeekProjectTime, localDate, pickSpotlight } from "@/lib/projectTime";
 import {
   flushSyncQueue,
@@ -59,9 +63,8 @@ interface Week {
   stats: FocusStats | null;
   days: HeatmapDay[];
   spotlight: { project: ProjectWithStats; seconds: number } | null;
-  /** Coding seconds this week and the coding streak; they lead when there is coding time. */
+  /** Coding seconds this week; it leads when there is coding time. */
   coded: number;
-  codingStreak: number;
 }
 
 /** This week's numbers for the header and the spotlight line; null while loading. */
@@ -92,7 +95,7 @@ function useWeek(): Week | null {
       });
       setWeek({
         for: userId,
-        value: { stats, days, spotlight: pickSpotlight(projects, time), coded: coding.total, codingStreak: coding.streak },
+        value: { stats, days, spotlight: pickSpotlight(projects, time), coded: coding.total },
       });
     });
     return () => {
@@ -124,10 +127,16 @@ export default function Home() {
     };
   }, []);
 
-  const queued = today.tasks.filter((t) => t.status === "queued");
+  const { profile } = useProfile();
+  // Wide screens get two zones: today's work, and a quiet rail for the Floor around you.
+  const wide = useMediaQuery("(min-width: 960px)");
+  const { rooms } = useActiveRooms();
+  const shipped = useAllyShipped(profile?.id);
+  const [clockOffsetMs] = useState(lastClockOffset);
+  const next = heroTask(today.tasks, null);
 
   function startFocus() {
-    if (!focus.session.active) focus.begin(heroTask(today.tasks, null)?.id ?? null);
+    if (!focus.session.active) focus.begin(next?.id ?? null);
     navigate("/focus");
   }
 
@@ -135,32 +144,55 @@ export default function Home() {
     <div style={{ minHeight: "100vh", background: colors.bg.muted, paddingTop: 96, paddingBottom: 160, fontFamily: FONT }}>
       <div
         style={{
-          maxWidth: 640,
+          maxWidth: wide ? 1120 : 640,
           margin: "0 auto",
-          padding: `0 ${spacing.base}px`,
-          display: "flex",
-          flexDirection: "column",
-          gap: spacing.lg,
+          padding: `0 ${wide ? spacing.xl : spacing.base}px`,
+          display: "grid",
+          gridTemplateColumns: wide ? "minmax(0, 1fr) 340px" : "minmax(0, 1fr)",
+          gap: wide ? 40 : spacing.lg,
+          alignItems: "start",
         }}
       >
-        <Header week={week} />
+        <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg, minWidth: 0 }}>
+          <Header week={week} showWeek={!wide} />
 
-        {today.carryFrom.length > 0 && <CarryCard today={today} />}
+          {!wide && (
+            <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
+              <FloorLine rooms={rooms} clockOffsetMs={clockOffsetMs} />
+              {shipped?.[0] && <ShippedLine post={shipped[0]} />}
+            </div>
+          )}
 
-        <TaskList today={today} />
+          {today.carryFrom.length > 0 && <CarryCard today={today} />}
 
-        <Button
-          label={focus.session.active ? "Resume focus" : queued.length ? "Start focus" : "Plan first"}
-          size="lg"
-          fullWidth
-          icon={<Play size={18} />}
-          disabled={!focus.session.active && queued.length === 0}
-          onClick={startFocus}
-        />
+          <TaskList today={today} />
 
-        <Review today={today} />
+          <StartCard
+            focusActive={focus.session.active}
+            nextTask={next?.text ?? null}
+            rooms={rooms}
+            clockOffsetMs={clockOffsetMs}
+            onStartAlone={startFocus}
+          />
 
-        <Spotlight week={week} />
+          <Review today={today} />
+
+          {!wide && <Spotlight week={week} />}
+        </div>
+
+        {wide && (
+          <aside
+            aria-label="The Floor"
+            style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: spacing.md }}
+          >
+            <RoomsCard rooms={rooms} clockOffsetMs={clockOffsetMs} />
+            {shipped && <ShippedCard posts={shipped} />}
+            <RailCard label="your week">
+              <WeekStats week={week} />
+              <Spotlight week={week} stacked />
+            </RailCard>
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -168,7 +200,7 @@ export default function Home() {
 
 /* ─────────────────────────── HEADER ─────────────────────────── */
 
-function Header({ week }: { week: Week | null }) {
+function Header({ week, showWeek }: { week: Week | null; showWeek: boolean }) {
   const { spacing } = useTokens();
   const { profile } = useProfile();
   const name = profile?.displayname ?? "there";
@@ -182,38 +214,40 @@ function Header({ week }: { week: Week | null }) {
         {greeting()}, {name}.
       </Text>
 
-      <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", minHeight: 30 }}>
-        {week ? (
-          <>
-            {week.coded > 0 ? (
-              <StatPill icon={<Code2 size={14} />} label="Coded this week" value={formatDuration(week.coded)} />
-            ) : (
-              <StatPill
-                icon={<Timer size={14} />}
-                label="Focus this week"
-                value={minutes(week.stats?.last_7d_minutes ?? week.days.reduce((s, d) => s + d.minutes, 0))}
-              />
-            )}
-            <StatPill
-              icon={<Flame size={14} />}
-              label="Day streak"
-              value={`${week.coded > 0 ? week.codingStreak : (week.stats?.current_streak ?? 0)}d`}
-            />
-            <WeekStrip days={week.days} />
-          </>
-        ) : (
-          <>
-            <Skeleton style={{ width: 84, height: 28, borderRadius: 999 }} />
-            <Skeleton style={{ width: 52, height: 28, borderRadius: 999 }} />
-            <Skeleton style={{ width: 70, height: 20 }} />
-          </>
-        )}
-      </div>
+      {showWeek && <WeekStats week={week} />}
 
       <Text variant="title" tone="secondary" weight={600} style={{ display: "block", marginTop: spacing.xs }}>
         What must happen today?
       </Text>
     </header>
+  );
+}
+
+/** This week's time and its seven days. No streak: a streak counts days, not work. */
+function WeekStats({ week }: { week: Week | null }) {
+  const { spacing } = useTokens();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", minHeight: 30 }}>
+      {week ? (
+        <>
+          {week.coded > 0 ? (
+            <StatPill icon={<Code2 size={14} />} label="Coded this week" value={formatDuration(week.coded)} />
+          ) : (
+            <StatPill
+              icon={<Timer size={14} />}
+              label="Focus this week"
+              value={minutes(week.stats?.last_7d_minutes ?? week.days.reduce((s, d) => s + d.minutes, 0))}
+            />
+          )}
+          <WeekStrip days={week.days} />
+        </>
+      ) : (
+        <>
+          <Skeleton style={{ width: 84, height: 28, borderRadius: 999 }} />
+          <Skeleton style={{ width: 70, height: 20 }} />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -609,12 +643,21 @@ function Review({ today }: { today: ReturnType<typeof useToday> }) {
 /* ─────────────────────────── SPOTLIGHT ─────────────────────────── */
 
 /** One line: the project with the most time this week, and the way to all projects. */
-function Spotlight({ week }: { week: Week | null }) {
+function Spotlight({ week, stacked = false }: { week: Week | null; stacked?: boolean }) {
   const { colors, spacing, radii } = useTokens();
   const spot = week?.spotlight ?? null;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.sm }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: stacked ? "column" : "row",
+        alignItems: stacked ? "stretch" : "center",
+        gap: stacked ? spacing.xs : spacing.sm,
+        flexWrap: stacked ? "nowrap" : "wrap",
+        marginTop: stacked ? 0 : spacing.sm,
+      }}
+    >
       {!week ? (
         <Skeleton style={{ flex: 1, height: 44, borderRadius: radii.lg }} />
       ) : spot ? (
@@ -636,10 +679,14 @@ function Spotlight({ week }: { week: Week | null }) {
           }}
         >
           <FolderGit2 size={16} color={colors.surface.skillhive} aria-hidden="true" />
-          <Text variant="bodySm" weight={700} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Text
+            variant="bodySm"
+            weight={700}
+            style={{ minWidth: 0, flexShrink: stacked ? 1 : 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
             {spot.project.name}
           </Text>
-          <Text variant="bodySm" tone="tertiary" style={{ flex: 1, whiteSpace: "nowrap" }}>
+          <Text variant="bodySm" tone="tertiary" style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             · {formatDuration(spot.seconds)} this week
           </Text>
           <ArrowRight
@@ -657,8 +704,9 @@ function Spotlight({ week }: { week: Week | null }) {
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
-          height: 36,
-          padding: "0 12px",
+          height: stacked ? 28 : 36,
+          padding: stacked ? "0 4px" : "0 12px",
+          alignSelf: stacked ? "flex-start" : undefined,
           borderRadius: radii.pill,
           color: colors.text.secondary,
           fontSize: 13,

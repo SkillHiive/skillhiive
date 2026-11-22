@@ -18,16 +18,23 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigat
  * One field: what you shipped. A picture and a project are optional. Posts are written in
  * the shapes the feed has always used (lib/posts.ts newPostRows).
  */
-export function Composer({ onPosted }: { onPosted: (post: PostModel) => void }) {
+export function Composer({
+  onPosted,
+  draft = null,
+}: {
+  onPosted: (post: PostModel) => void;
+  /** Text handed over from elsewhere (leaving a room): the composer opens with it, you post it. */
+  draft?: string | null;
+}) {
   const { profile } = useProfile();
   const toast = useToast();
   const confirm = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(draft !== null);
   const [closing, setClosing] = useState(false);
-  const [caption, setCaption] = useState("");
+  const [caption, setCaption] = useState(draft ?? "");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [projects, setProjects] = useState<string[] | null>(null);

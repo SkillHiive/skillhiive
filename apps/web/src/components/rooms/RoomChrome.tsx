@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Participant } from "livekit-client";
-import { Check, Hexagon, LogOut, Mic, MicOff, SwitchCamera, Users, Video, VideoOff, Volume2 } from "lucide-react";
+import { Check, Hexagon, LogOut, Mic, MicOff, PictureInPicture2, SwitchCamera, Users, Video, VideoOff, Volume2 } from "lucide-react";
 import { useTokens } from "@/theme";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAvatars } from "@/hooks/useAvatars";
@@ -110,6 +110,7 @@ export function ControlBar({
   onOutput,
   onPeople,
   onLeave,
+  onPopOut,
 }: {
   micEnabled: boolean;
   camEnabled: boolean;
@@ -127,6 +128,8 @@ export function ControlBar({
   onOutput: (id: string) => void;
   onPeople: () => void;
   onLeave: () => void;
+  /** Present when this browser can put the room in its own always-on-top window. */
+  onPopOut?: () => void;
 }) {
   const { colors, radii } = useTokens();
   const [outputOpen, setOutputOpen] = useState(false);
@@ -199,6 +202,11 @@ export function ControlBar({
             style={btn(false)}
           >
             <Volume2 size={20} />
+          </button>
+        )}
+        {onPopOut && (
+          <button type="button" className="ui-press" onClick={onPopOut} aria-label="Pop out" title="Pop out" style={btn(false)}>
+            <PictureInPicture2 size={20} />
           </button>
         )}
         <button

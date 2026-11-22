@@ -74,6 +74,55 @@ export function roomSlug(text: string): string | null {
   return ROOM_NAME_PATTERN.test(slug) ? slug : null;
 }
 
+/**
+ * Rooms that are always listed, even with nobody inside, so there is always somewhere to start.
+ * An empty room says nothing about who is online.
+ */
+export const STANDING_ROOMS = ["deep-work", "writing", "design", "late-night"] as const;
+
+export interface FloorRoom {
+  phase: "waiting" | "focus" | "break";
+  remainingSeconds: number;
+}
+
+/** The Floor at a glance, from the open rooms' clocks: how many are in focus, on break, and when the next break starts. */
+export function floorSummary(rooms: FloorRoom[]): { open: number; focus: number; onBreak: number; nextBreakSeconds: number | null } {
+  let focus = 0;
+  let onBreak = 0;
+  let next: number | null = null;
+  for (const r of rooms) {
+    if (r.phase === "focus") {
+      focus++;
+      next = next === null ? r.remainingSeconds : Math.min(next, r.remainingSeconds);
+    } else if (r.phase === "break") onBreak++;
+  }
+  return { open: rooms.length, focus, onBreak, nextBreakSeconds: next };
+}
+
+/**
+ * Which room "start in a room" suggests: one on break first (people are talking, a good moment to
+ * arrive), then the room in focus closest to its break, then the first standing room.
+ */
+export function suggestRoom(rooms: (FloorRoom & { name: string })[]): string {
+  const onBreak = rooms.find((r) => r.phase === "break");
+  if (onBreak) return onBreak.name;
+  const focus = rooms.filter((r) => r.phase === "focus").sort((a, b) => a.remainingSeconds - b.remainingSeconds)[0];
+  if (focus) return focus.name;
+  return rooms[0]?.name ?? STANDING_ROOMS[0];
+}
+
+/**
+ * A post written from a room ends with its fact, like "52m in deep-work" (the leave sheet adds it).
+ * Splits that line off so the card can show it as a tag. Null when the caption has none.
+ */
+export function roomFact(caption: string): { body: string; duration: string; room: string } | null {
+  const lines = caption.trimEnd().split(/\r?\n/);
+  const last = lines[lines.length - 1]?.trim() ?? "";
+  const m = /^(\d+h(?: \d+m)?|\d+m) in ([a-z0-9][a-z0-9-]{1,62})$/.exec(last);
+  if (!m || !m[1] || !m[2]) return null;
+  return { body: lines.slice(0, -1).join("\n").trim(), duration: m[1], room: m[2] };
+}
+
 /** Under a minute of focus is not worth a session row. */
 export const MIN_SAVED_FOCUS_SECONDS = 60;
 
