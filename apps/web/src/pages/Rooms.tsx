@@ -1,185 +1,39 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { DoorOpen, Plus } from "lucide-react";
 
 import { WorkRoomCard } from "@/components/ui/WorkRoomCard";
 import { Text, Button } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
-import { lastClockOffset } from "@/lib/room";
+import { lastClockOffset, MONO, ROOM_CAP, roomNameInput, roomSlug } from "@/lib/room";
 import { useActiveRooms } from "@/hooks/useActiveRooms";
-import { Plus } from "lucide-react";
 import { ErrorState } from "@/components/ui/ErrorState";
-
-const SUGGESTED_ROOM_NAME = "Deep work";
-
-function NewRoomModal({
-  open,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (name: string) => void;
-}) {
-  const { colors, radii, spacing } = useTokens();
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) {
-      // Start with a name that works as-is; typing replaces it.
-      setValue(SUGGESTED_ROOM_NAME);
-      setTimeout(() => inputRef.current?.select(), 60);
-    }
-  }, [open]);
-
-  function handleSubmit() {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    onSubmit(trimmed);
-    setValue("");
-  }
-
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === "Enter") handleSubmit();
-    if (e.key === "Escape") onClose();
-  }
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          onClick={onClose}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: colors.overlay.scrim,
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center",
-          }}
-        >
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 40, opacity: 0 }}
-            transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 480,
-              margin: `0 ${spacing.base}px ${spacing.xl}px`,
-              background: colors.bg.muted,
-              borderRadius: radii.xxl,
-              border: `1px solid ${colors.border.subtle}`,
-              padding: spacing.xl,
-              boxShadow: "0 -8px 48px rgba(0,0,0,0.45)",
-            }}
-          >
-            <div
-              style={{
-                width: 40,
-                height: 4,
-                borderRadius: 999,
-                background: colors.border.strong,
-                margin: "0 auto 18px",
-              }}
-            />
-            <Text variant="subtitle" style={{ marginBottom: spacing.base }}>
-              Name your room
-            </Text>
-
-            <input
-              ref={inputRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={handleKey}
-              aria-label="Room name"
-              placeholder="e.g. deep work, thesis grind…"
-              style={{
-                width: "100%",
-                border: `1px solid ${colors.border.default}`,
-                borderRadius: radii.md,
-                padding: "14px",
-                marginBottom: spacing.lg,
-                fontSize: 15,
-                background: colors.surface.sunken,
-                color: colors.text.primary,
-                outline: "none",
-                boxSizing: "border-box",
-                fontFamily: "inherit",
-              }}
-            />
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: spacing.sm,
-              }}
-            >
-              <Button
-                label="Cancel"
-                variant="secondary"
-                size="sm"
-                onClick={onClose}
-              />
-              <Button
-                label="Create"
-                variant="primary"
-                size="sm"
-                onClick={handleSubmit}
-              />
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function Spinner() {
-  const { colors } = useTokens();
-  return (
-    <>
-      <style>{`@keyframes rooms-spin { to { transform: rotate(360deg); } }`}</style>
-      <div
-        style={{
-          width: 26,
-          height: 26,
-          border: `2px solid ${colors.border.subtle}`,
-          borderTopColor: colors.surface.skillhive,
-          borderRadius: "50%",
-          animation: "rooms-spin 0.8s linear infinite",
-        }}
-      />
-    </>
-  );
-}
+import { EmptyState, SkeletonRows } from "@/components/ui/States";
 
 export default function Rooms() {
-  const router = useNavigate();
-  const { colors, spacing } = useTokens();
+  const navigate = useNavigate();
+  const { colors, radii, spacing } = useTokens();
   const { rooms, loading, error, retrying, retry } = useActiveRooms();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   // Measured by the token server the last time a room was joined in this tab; 0 until then.
   const [clockOffsetMs] = useState(lastClockOffset);
 
-  const handleOpenSheet = useCallback(() => setSheetOpen(true), []);
-  const handleCloseSheet = useCallback(() => setSheetOpen(false), []);
+  // The field shows the name the room will really have, so nothing is rewritten after you press Open.
+  const slug = roomSlug(name);
+  // Typing the name of a room that is already open joins it: the button says so before you press it.
+  const existing = useMemo(() => rooms.find((r) => r.room_name === slug) ?? null, [rooms, slug]);
+  const existingFull = existing !== null && existing.participant_count >= ROOM_CAP;
 
-  function handleStartSession(name: string) {
-    handleCloseSheet();
-    router(`/rooms/${encodeURIComponent(name)}`);
+  function open(roomName: string) {
+    navigate(`/rooms/${encodeURIComponent(roomName)}`);
   }
 
-  function handleJoinRoom(name: string) {
-    router(`/rooms/${encodeURIComponent(name)}`);
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!slug || existingFull) return;
+    open(slug);
   }
 
   return (
@@ -189,8 +43,6 @@ export default function Rooms() {
         background: colors.bg.muted,
         paddingTop: 88,
         paddingBottom: 120,
-        fontFamily:
-          '"popreg", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}
     >
       <div
@@ -200,100 +52,110 @@ export default function Rooms() {
           padding: `${spacing.sm}px ${spacing.base}px`,
           display: "flex",
           flexDirection: "column",
-          gap: spacing.md,
+          gap: spacing.lg,
         }}
       >
-        {/* Section header */}
-        <div
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: spacing.sm }}>
+          <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+            Rooms
+          </Text>
+          {rooms.length > 0 && (
+            <span
+              style={{
+                fontFamily: MONO,
+                fontSize: 12,
+                color: colors.text.tertiary,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {rooms.length} open
+            </span>
+          )}
+        </div>
+
+        <form
+          onSubmit={submit}
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: spacing.xs,
+            gap: spacing.sm,
+            background: colors.surface.primary,
+            border: `1px dashed ${colors.border.strong}`,
+            borderRadius: radii.lg,
+            padding: `${spacing.xs}px ${spacing.xs}px ${spacing.xs}px ${spacing.base}px`,
           }}
         >
-          <Text variant="subtitle">Work Rooms</Text>
-
-          <div
-            style={{ display: "flex", alignItems: "center", gap: spacing.sm }}
-          >
-            {rooms.length > 0 && (
-              <div
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  background: colors.surface.skillhive + "22",
-                }}
-              >
-                <Text variant="caption" tone="skillhive" weight={700}>
-                  {rooms.length} live
-                </Text>
-              </div>
-            )}
-            <Button
-              label="New Room"
-              icon={<Plus size={14} />}
-              size="sm"
-              variant="primary"
-              onClick={handleOpenSheet}
-            />
-          </div>
-        </div>
-
-        {/* Loading */}
-        {loading && (
-          <div
+          <Plus size={16} color={colors.text.tertiary} aria-hidden="true" />
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(roomNameInput(e.target.value))}
+            placeholder="new-room"
+            aria-label="Room name"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             style={{
-              paddingTop: 48,
-              display: "flex",
-              justifyContent: "center",
+              flex: 1,
+              minWidth: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: colors.text.primary,
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: MONO,
+              padding: "8px 0",
             }}
-          >
-            <Spinner />
-          </div>
-        )}
-
-        {!loading && error && (
-          <ErrorState message={error} onRetry={() => void retry()} retrying={retrying} />
-        )}
-
-        {/* Empty state */}
-        {!loading && !error && rooms.length === 0 && (
-          <WorkRoomCard
-            state="empty"
-            name="No rooms yet"
-            tag="Be the first"
-            onStart={handleOpenSheet}
           />
+          <Button
+            type="submit"
+            label={existingFull ? "Full" : existing ? "Join" : "Open"}
+            size="sm"
+            disabled={!slug || existingFull}
+          />
+        </form>
+
+        {loading ? (
+          <SkeletonRows rows={3} height={70} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => void retry()} retrying={retrying} />
+        ) : rooms.length === 0 ? (
+          <EmptyState
+            icon={<DoorOpen size={22} />}
+            title="No rooms open"
+            action={
+              <Button label="Open a room" size="sm" variant="secondary" onClick={() => inputRef.current?.focus()} />
+            }
+          />
+        ) : (
+          <ul
+            aria-label="Open rooms"
+            style={{ display: "flex", flexDirection: "column", gap: spacing.sm, margin: 0, padding: 0, listStyle: "none" }}
+          >
+            <AnimatePresence initial={false}>
+              {rooms.map((room) => (
+                <motion.li
+                  key={room.room_name}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 26 }}
+                >
+                  <WorkRoomCard
+                    name={room.room_name}
+                    count={room.participant_count}
+                    sessionStartedAt={room.session_started_at}
+                    clockOffsetMs={clockOffsetMs}
+                    onJoin={() => open(room.room_name)}
+                  />
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </ul>
         )}
-
-        {/* Room cards */}
-        {!loading &&
-          rooms.map((room) => {
-            const memberNames = room.participants.map(
-              (p) => p.displayname || p.username,
-            );
-
-            return (
-              <WorkRoomCard
-                key={room.room_name}
-                state="live"
-                name={room.room_name}
-                tag={`${room.participant_count} joined`}
-                members={memberNames}
-                sessionStartedAt={room.session_started_at}
-                clockOffsetMs={clockOffsetMs}
-                onJoin={() => handleJoinRoom(room.room_name)}
-              />
-            );
-          })}
       </div>
-
-      <NewRoomModal
-        open={sheetOpen}
-        onClose={handleCloseSheet}
-        onSubmit={handleStartSession}
-      />
     </div>
   );
 }
