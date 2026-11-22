@@ -26,6 +26,8 @@ export const CueLinkStartRequestSchema = z.object({
   deviceName: z.string().trim().min(1).max(80),
   platform: z.string().trim().min(1).max(40),
   cueVersion: z.string().min(1).max(20),
+  /** A hash of the machine's id (never the id itself), so linking the same machine again reuses its device. Optional for older Cue. */
+  machineId: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
 });
 
 export const CueLinkStartResponseSchema = z.object({

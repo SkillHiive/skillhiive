@@ -46,6 +46,7 @@ export const CUE_SYNC_DISCLOSURE: readonly CueSyncDisclosureGroup[] = [
     items: [
       { text: "the computer’s name and platform", fields: ["link.deviceName", "link.platform"] },
       { text: "the Cue version", fields: ["link.cueVersion"] },
+      { text: "a one-way hash of the computer’s id, so linking it again reuses the same device and its time is not counted twice", fields: ["link.machineId"] },
       { text: "a public key that identifies the device; the private key never leaves it", fields: ["link.publicKey"] },
     ],
   },

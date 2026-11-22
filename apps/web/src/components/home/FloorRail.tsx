@@ -57,7 +57,7 @@ export function RoomsCard({ rooms, clockOffsetMs, limit = 4 }: { rooms: ActiveRo
   const next = nextBreakLabel(floorSummary(phases.map((p) => p.phase)).nextBreakSeconds);
 
   return (
-    <RailCard label={next ? `the floor · ${next}` : "the floor"}>
+    <RailCard label={next ? `space · ${next}` : "space"}>
       {phases.length === 0 ? (
         <Link
           to="/rooms"
@@ -167,7 +167,7 @@ export function ShippedLine({ post, wrap = false }: { post: PostModel; wrap?: bo
   );
 }
 
-/** Phones: the Floor in one line, under the greeting. */
+/** Phones: Space in one line, under the greeting. */
 export function FloorLine({ rooms, clockOffsetMs }: { rooms: ActiveRoom[]; clockOffsetMs: number }) {
   const { colors, radii, spacing } = useTokens();
   const now = useFloorNow(rooms.length > 0, clockOffsetMs);

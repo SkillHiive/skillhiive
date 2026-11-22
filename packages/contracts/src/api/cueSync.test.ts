@@ -43,6 +43,12 @@ describe("Cue sync contract", () => {
   it("describes the link flow", () => {
     const publicKey = Buffer.alloc(32, 7).toString("base64");
     expect(CueLinkStartRequestSchema.safeParse({ publicKey, deviceName: "rohans-air", platform: "darwin-arm64", cueVersion: "0.2.0" }).success).toBe(true);
+    expect(
+      CueLinkStartRequestSchema.safeParse({ publicKey, deviceName: "rohans-air", platform: "darwin-arm64", cueVersion: "0.2.0", machineId: "a".repeat(64) }).success,
+    ).toBe(true);
+    expect(
+      CueLinkStartRequestSchema.safeParse({ publicKey, deviceName: "rohans-air", platform: "darwin-arm64", cueVersion: "0.2.0", machineId: "not-a-hash" }).success,
+    ).toBe(false);
     expect(CueLinkStartRequestSchema.safeParse({ publicKey: "short", deviceName: "x", platform: "y", cueVersion: "1" }).success).toBe(false);
     expect(
       CueLinkStartResponseSchema.safeParse({

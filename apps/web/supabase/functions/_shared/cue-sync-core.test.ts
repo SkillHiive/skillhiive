@@ -47,6 +47,7 @@ async function sign(key: Key, timestamp: number, body: string): Promise<string> 
 }
 
 function memoryStore() {
+  const machineIds: (string | null)[] = [];
   const links = new Map<string, LinkRow & { userCodeHash: string; ipHash: string; createdAt: string; deviceName: string }>();
   const devices = new Map<string, DeviceRow>();
   const projects = new Map<string, SyncProject>();
@@ -64,6 +65,7 @@ function memoryStore() {
         id, publicKey: link.publicKey, expiresAt: link.expiresAt, approvedAt: null, approvedBy: null, deviceId: null,
         userCodeHash: link.userCodeHash, ipHash: link.ipHash, createdAt: new Date(NOW).toISOString(), deviceName: link.deviceName,
       });
+      machineIds.push(link.machineId);
       return id;
     },
     async getLink(id) { return links.get(id) ?? null; },
@@ -85,7 +87,7 @@ function memoryStore() {
     },
   };
   return {
-    store, links, devices, projects, days, budget,
+    store, links, devices, projects, days, budget, machineIds,
     afterSyncCalls: () => afterSyncCalls,
     /** What the web RPC approve_cue_link does. */
     approve(linkId: string): string {
@@ -140,6 +142,20 @@ describe("cue-sync: linking", () => {
     expect(stored.userCodeHash).toBe(await codeHash(" abcd-2345 "));
     expect(stored.deviceName).toBe("rohans-air");
     expect(JSON.stringify([...server.links.values()])).not.toContain("ABCD-2345");
+  });
+
+  it("keeps an optional machine id for old and new clients, lower case", async () => {
+    const server = memoryStore();
+    const key = await newKey();
+    const base = { publicKey: key.publicKey, deviceName: "x", platform: "y", cueVersion: "1" };
+    expect((await call(server, "/v1/link/start", base)).status).toBe(200);
+    expect((await call(server, "/v1/link/start", { ...base, machineId: "AB".repeat(32) })).status).toBe(200);
+    expect(server.machineIds).toEqual([null, "ab".repeat(32)]);
+    for (const machineId of ["short", "z".repeat(64), "a".repeat(63), 7]) {
+      const bad = await call(server, "/v1/link/start", { ...base, machineId });
+      expect(bad.status).toBe(422);
+      expect(bad.body.error.field).toBe("machineId");
+    }
   });
 
   it("rejects a malformed key and limits attempts per address", async () => {
