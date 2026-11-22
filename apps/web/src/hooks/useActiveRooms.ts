@@ -2,33 +2,32 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { loadErrorMessage, withTimeout } from "@/lib/load";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-export interface RoomParticipant {
-  user_id: string;
-  username: string;
-  displayname: string;
-  avatar: string | null;
-}
+import { ROOM_NAME_PATTERN } from "@/lib/room";
 
 export interface ActiveRoom {
   room_name: string;
   participant_count: number;
   started_at: string;
   session_started_at: string | null;
-  participants: RoomParticipant[];
 }
 
 const POLL_INTERVAL = 8000;
 
 async function loadRooms(): Promise<ActiveRoom[]> {
   const { data, error } = await withTimeout(
-    supabase.from("active_rooms").select("*").order("started_at", { ascending: true }),
+    // Only the count leaves the server for the list: who is inside is never shown (no individual presence).
+    supabase
+      .from("active_rooms")
+      .select("room_name, participant_count, started_at, session_started_at")
+      .order("started_at", { ascending: true }),
   );
   if (error) throw error;
-  return (data ?? []) as ActiveRoom[];
+  // Rooms opened before the token server's name rule can't be joined any more; leave them out.
+  return ((data ?? []) as ActiveRoom[]).filter((r) => ROOM_NAME_PATTERN.test(r.room_name));
 }
 
-export function useActiveRooms() {
+/** `enabled` false stops the polling, for screens that only need the list some of the time. */
+export function useActiveRooms(enabled = true) {
   const session = useAuth();
   const [rooms, setRooms] = useState<ActiveRoom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +56,7 @@ export function useActiveRooms() {
   }, [applyRooms, applyError]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session || !enabled) return;
     let cancelled = false;
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
@@ -76,7 +75,7 @@ export function useActiveRooms() {
       clearInterval(poll);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [session, applyRooms, applyError]);
+  }, [session, enabled, applyRooms, applyError]);
 
   // Signed out there is nothing to load, so it isn't "loading" either.
   return {

@@ -17,7 +17,7 @@ describe("WorkRoomCard", () => {
   });
 
   it("shows the time left in the room's real focus phase and keeps counting", () => {
-    render(<WorkRoomCard state="live" name="Deep work" tag="2 joined" members={["a", "b"]} sessionStartedAt={minutesAgo(20)} />);
+    render(<WorkRoomCard name="Deep work" count={2} sessionStartedAt={minutesAgo(20)} />);
     expect(screen.getByText("30:00")).toBeTruthy();
     act(() => {
       vi.advanceTimersByTime(5000);
@@ -26,19 +26,19 @@ describe("WorkRoomCard", () => {
   });
 
   it("shows the break with its real remaining time", () => {
-    render(<WorkRoomCard state="live" name="Deep work" tag="1 joined" members={["a"]} sessionStartedAt={minutesAgo(52)} />);
+    render(<WorkRoomCard name="Deep work" count={1} sessionStartedAt={minutesAgo(52)} />);
     expect(screen.getByText("break")).toBeTruthy();
     expect(screen.getByText("08:00")).toBeTruthy();
   });
 
   it("uses the server clock offset", () => {
     // Our clock is 1 minute behind the server's: 1 more minute of focus has passed.
-    render(<WorkRoomCard state="live" name="R" tag="1 joined" sessionStartedAt={minutesAgo(20)} clockOffsetMs={60_000} />);
+    render(<WorkRoomCard name="R" count={1} sessionStartedAt={minutesAgo(20)} clockOffsetMs={60_000} />);
     expect(screen.getByText("29:00")).toBeTruthy();
   });
 
   it("flips to the break when focus runs out", () => {
-    render(<WorkRoomCard state="live" name="R" tag="1 joined" sessionStartedAt={new Date(NOW - FOCUS_MS + 2000).toISOString()} />);
+    render(<WorkRoomCard name="R" count={1} sessionStartedAt={new Date(NOW - FOCUS_MS + 2000).toISOString()} />);
     expect(screen.getByText("focus")).toBeTruthy();
     act(() => {
       vi.advanceTimersByTime(3000);
@@ -46,17 +46,20 @@ describe("WorkRoomCard", () => {
     expect(screen.getByText("break")).toBeTruthy();
   });
 
-  it("offers Join for a room with people whose clock hasn't started", async () => {
+  it("joins from anywhere on the card, even before the clock starts", async () => {
     const onJoin = vi.fn();
-    render(<WorkRoomCard state="live" name="R" tag="1 joined" members={["a"]} sessionStartedAt={null} onJoin={onJoin} />);
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole("button", { name: "Join" }));
+    render(<WorkRoomCard name="R" count={1} sessionStartedAt={null} onJoin={onJoin} />);
+    expect(screen.getByText("waiting")).toBeTruthy();
+    expect(screen.getByText("1/12")).toBeTruthy();
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole("button", { name: "Join R" }));
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
-  it("wires the empty state's start button", async () => {
-    const onStart = vi.fn();
-    render(<WorkRoomCard state="empty" name="No rooms yet" tag="Be the first" onStart={onStart} />);
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole("button", { name: "Start" }));
-    expect(onStart).toHaveBeenCalledOnce();
+  it("shows a full room before anyone tries to join it", async () => {
+    const onJoin = vi.fn();
+    render(<WorkRoomCard name="R" count={12} sessionStartedAt={minutesAgo(5)} onJoin={onJoin} />);
+    const card = screen.getByRole("button", { name: "R, full" });
+    expect(screen.getByText("full")).toBeTruthy();
+    expect((card as HTMLButtonElement).disabled).toBe(true);
   });
 });

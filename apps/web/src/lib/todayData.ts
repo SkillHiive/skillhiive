@@ -158,6 +158,27 @@ export async function saveSession(input: SessionInput): Promise<void> {
   if (!isOnline() || !(await pushItem(item))) enqueue(item);
 }
 
+/**
+ * Queue a session for `user_id` right now, synchronously, then try to send it. Safe while the
+ * page is going away (pagehide, leaving a room): what doesn't reach the server is sent next time.
+ */
+export function queueSession(user_id: string, input: SessionInput): void {
+  enqueue({
+    kind: "session",
+    payload: {
+      user_id,
+      project_id: input.project_id ?? null,
+      task_text: input.task_text ?? null,
+      estimate_min: input.estimate_min ?? null,
+      duration_seconds: input.duration_seconds,
+      interrupted: input.interrupted ?? false,
+      completed_at: input.completed_at ?? new Date().toISOString(),
+    },
+    ts: Date.now(),
+  });
+  void flushSyncQueue();
+}
+
 export async function saveNote(input: NoteInput): Promise<void> {
   const user_id = await currentUserId();
   if (!user_id) return;
