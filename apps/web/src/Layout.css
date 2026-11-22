@@ -150,21 +150,9 @@
   scale: 0.95;
 }
 
+/* Motion easings the pages share. Colour, type and radius come from the brand tokens
+   (packages/brand), not from here. */
 :root {
-  --bg: #0a0a0a;
-  --bg-mid: #110f0d;
-  --surface: #1a1714;
-  --ink: #e8e0d5;
-  --ink-muted: #ffffff;
-  --ink-faint: #3a322c;
-  --ember: #fffd01;
-  --ember-glow: #ffff62;
-  --ember-dim: rgba(200, 197, 42, 0.15);
-  --gold: #b0b86a;
-
-  --font-serif: "Bodoni Moda", Georgia, serif;
-  --font-mono: "Martian Mono", monospace;
-
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
 }
@@ -175,12 +163,11 @@
   }
 }
 
+/* Colour and family come from index.css (@apply bg-background text-foreground), so the app
+   reads in the brand's ink on the brand's page, in the sans. Monospace is for labels. */
 body {
-  background-color: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: clamp(12px, 1.2vw, 14px);
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.55;
   overflow-x: hidden;
 }
 

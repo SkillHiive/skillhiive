@@ -38,11 +38,13 @@ function show(privateToOwner = false) {
 }
 
 describe("ActivityCard", () => {
-  it("shows one coding total with its streak and days, and no sessions when there are none", async () => {
+  it("shows one coding total and its days, with no streak and no sessions", async () => {
     show();
     expect(await screen.findByText("20h 32m", undefined, { timeout: 2000 })).toBeTruthy();
     expect(screen.getByText("coding")).toBeTruthy();
-    expect(screen.getByText("streak")).toBeTruthy();
+    // No streak: a streak counts days, not work (brief: no gamification).
+    expect(screen.queryByText("streak")).toBeNull();
+    expect(screen.getByText("day")).toBeTruthy();
     expect(screen.queryByText(/session/)).toBeNull();
     expect(screen.queryByRole("link", { name: /only you/i })).toBeNull();
   });

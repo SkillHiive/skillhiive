@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { CalendarDays, Flame, Lock, Timer } from "lucide-react";
+import { CalendarDays, Lock, Timer } from "lucide-react";
 import { Heatmap } from "@/components/ui/Heatmap";
 import { LanguageBreakdown } from "@/components/CodingTime/parts";
 import { formatDuration, type UserCodingTime } from "@/lib/timeTracker";
 import type { HeatmapDay, ShippedNote } from "@/lib/todayData";
 import { activityHeatmap, dayActivity, type ProfileSummary } from "@/lib/profileActivity";
 import { DayPopover } from "./DayPopover";
-import { useCountUp } from "./useCountUp";
 
 const WEEKS = 26;
 
@@ -34,10 +33,11 @@ export function ActivityCard({
   const [open, setOpen] = useState<{ day: string; anchor: HTMLElement } | null>(null);
   const heatmap = useMemo(() => activityHeatmap(coding, focusDays), [coding, focusDays]);
 
-  const total = useCountUp(Math.round(summary.totalSeconds / 60));
-  const streak = useCountUp(summary.streakDays);
-  const days = useCountUp(summary.activeDays);
-  const sessions = useCountUp(summary.sessions);
+  // No streak and no counting up: a streak counts days, not work, and a number that animates
+  // is a nudge. The figures are shown as they are (brief: no gamification).
+  const total = Math.round(summary.totalSeconds / 60);
+  const days = summary.activeDays;
+  const sessions = summary.sessions;
 
   const close = useCallback(() => setOpen(null), []);
 
@@ -66,9 +66,6 @@ export function ActivityCard({
             </Link>
           )}
         </div>
-        {summary.streakDays > 0 && (
-          <Fact icon={<Flame size={14} />} value={`${streak}d`} label="streak" />
-        )}
         {summary.activeDays > 0 && (
           <Fact icon={<CalendarDays size={14} />} value={String(days)} label={summary.activeDays === 1 ? "day" : "days"} />
         )}

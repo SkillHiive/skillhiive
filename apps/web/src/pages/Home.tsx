@@ -210,7 +210,7 @@ function Header({ week, showWeek }: { week: Week | null; showWeek: boolean }) {
       <Text variant="caption" tone="tertiary" style={{ textTransform: "uppercase", letterSpacing: 2 }}>
         {dateLabel()}
       </Text>
-      <Text variant="display" weight={900} style={{ letterSpacing: -1, lineHeight: 1.05 }}>
+      <Text as="h1" variant="display">
         {greeting()}, {name}.
       </Text>
 

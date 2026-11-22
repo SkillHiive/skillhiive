@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Clock, Flame, TrendingUp, RefreshCw, ExternalLink } from "lucide-react";
+import { Clock, RefreshCw, ExternalLink } from "lucide-react";
 import { Text } from "@skillhiive/ui";
 import { useTokens } from "@/theme";
 import { useUserCodingStats } from "@/hooks/useTimeTracker";
@@ -216,21 +216,12 @@ export function CodingTimeProfileCard({ userId, isOwnProfile, username }: Props)
         <Text variant="caption" tone="tertiary">{earlierHistoryNote(extras)}</Text>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: spacing.sm }}>
+      {/* Time, not streaks: a streak counts days, not work (brief: no gamification). */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: spacing.sm }}>
         <StatCard
           icon={<Clock size={18} color={colors.surface.skillhive} />}
           label="Total Time"
           value={`${totalHours}h`}
-        />
-        <StatCard
-          icon={<Flame size={18} color={colors.tint.warning} />}
-          label="Current Streak"
-          value={`${stats.current_streak_days}d`}
-        />
-        <StatCard
-          icon={<TrendingUp size={18} color={colors.tint.success} />}
-          label="Longest Streak"
-          value={`${stats.longest_streak_days}d`}
         />
       </div>
 

@@ -32,11 +32,7 @@ export default function Notifications() {
         >
           {/* Header */}
           <div style={{ padding: `${spacing.lg}px 0 ${spacing.lg}px` }}>
-            <Text
-              variant="headline"
-              weight={900}
-              style={{ letterSpacing: -0.5 }}
-            >
+            <Text as="h1" variant="display">
               Notifications
             </Text>
             <Text

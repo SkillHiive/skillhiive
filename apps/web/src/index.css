@@ -207,20 +207,24 @@ html.custom-cursor * {
   transition-duration: var(--dur-press);
 }
 
-/* Cards and rows: rise a pixel with a soft shadow; never grow. */
+/* Cards and rows: the edge brightens and a soft shadow appears; never move, never grow.
+   Hover used to also lift the card a pixel. A card rarely sits on a whole pixel, and moving a
+   bordered box puts it on its own layer, where the half-pixel top border is dropped: the card
+   looked cut along its top edge for as long as the pointer was on it. The border doing the
+   work reads better on a dark page anyway, where a black shadow says nothing. */
 .ui-lift {
   transition:
-    transform var(--dur-hover) var(--ease-ui),
     box-shadow var(--dur-hover) var(--ease-ui),
-    border-color var(--dur-hover) var(--ease-ui);
+    border-color var(--dur-hover) var(--ease-ui),
+    transform var(--dur-press) var(--ease-ui);
 }
 @media (hover: hover) {
   .ui-lift:hover {
-    transform: translateY(-1px);
     border-color: var(--color-border-strong);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
   }
 }
+/* Pressing is the one time it moves, and only for as long as the press lasts. */
 .ui-lift:active {
   transform: scale(0.99);
   transition-duration: var(--dur-press);

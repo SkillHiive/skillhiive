@@ -152,7 +152,7 @@ export function ImageCropDialog({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="ui-rise w-full max-w-[520px] rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-muted)] p-4 sm:p-5"
+        className="ui-rise w-full max-w-[520px] rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-primary)] p-4 sm:p-5"
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-extrabold text-[var(--color-text-primary)]">{title}</h2>

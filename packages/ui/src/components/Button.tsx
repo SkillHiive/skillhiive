@@ -50,7 +50,13 @@ export function Button({
   const isDanger = variant === "danger";
   const isAccent = variant === "accent";
 
-  const bg = isPrimary
+  // A button you cannot press is quiet, not a faded fill: a half-transparent accent reads as
+  // something broken, and on a page with one accent it is the loudest thing on screen.
+  const off = disabled && !loading;
+
+  const bg = off
+    ? "transparent"
+    : isPrimary
     ? colors.tint.primary
     : isAccent
       ? colors.tint.accent
@@ -60,7 +66,9 @@ export function Button({
           ? colors.surface.secondary
           : "transparent";
 
-  const fg =
+  const fg = off
+    ? colors.text.tertiary
+    :
     isPrimary || isDanger || isAccent
       ? isPrimary
         ? colors.text.onTint
@@ -69,7 +77,9 @@ export function Button({
         ? colors.tint.primary
         : colors.text.primary;
 
-  const border =
+  const border = off
+    ? `1px solid ${colors.border.subtle}`
+    :
     isSecondary && mode === "light"
       ? `1px solid ${colors.border.subtle}`
       : isGhost
@@ -119,7 +129,7 @@ export function Button({
         gap: spacing.sm,
         width: fullWidth ? "100%" : undefined,
         cursor: disabled || loading ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
+        opacity: 1,
         fontFamily: "inherit",
         ...style,
       }}

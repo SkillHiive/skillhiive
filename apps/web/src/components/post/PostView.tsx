@@ -31,8 +31,15 @@ function TopRow({
   onClose?: () => void;
   menu?: ReactNode;
 }) {
+  // In the sheet the row is pinned to the top, so closing the post and the owner's menu are
+  // always one reach away however far the conversation has been scrolled. It carries the
+  // sheet's top padding and spans its full width, so nothing scrolls past in the gap.
+  const pinned =
+    variant === "sheet"
+      ? "sticky top-0 z-10 -mx-4 bg-[var(--color-surface-primary)] px-4 pt-[max(12px,env(safe-area-inset-top))] sm:-mx-6 sm:px-6 sm:pt-4"
+      : "";
   return (
-    <div className="mb-3 flex h-10 items-center gap-1">
+    <div className={`mb-3 flex h-10 items-center gap-1 ${pinned}`} style={variant === "sheet" ? { height: "auto", minHeight: 40 } : undefined}>
       {variant === "page" && <BackLink to="/feed" label="Feed" />}
       <div className="flex-1" />
       {menu}
@@ -437,6 +444,7 @@ export function PostView({ postId, variant, focusComment = false, onClose, onDel
           onSend={sendComment}
           onDelete={(id) => void removeComment(id)}
           inputRef={replyRef}
+          pinned={variant === "sheet"}
         />
       </div>
     </article>

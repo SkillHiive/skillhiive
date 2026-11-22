@@ -121,7 +121,7 @@ export default function SettingsProfile() {
             }}
           >
             <BackLink to="/profile" label="Profile" />
-            <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+            <Text as="h1" variant="display">
               Edit profile
             </Text>
           </div>

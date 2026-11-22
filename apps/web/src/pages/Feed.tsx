@@ -19,7 +19,8 @@ import { useFollowing } from "@/hooks/useFollowing";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { lastClockOffset } from "@/lib/room";
 import { Composer } from "@/components/feed/Composer";
-import { useTokens } from "@/theme";
+import { spacing, useTokens } from "@/theme";
+import { Text } from "@/components/ui/Text";
 
 const PAGE_SIZE = 10;
 
@@ -274,6 +275,15 @@ export default function Feed() {
           }}
         >
         <main className="w-full px-4 pb-[120px] pt-6" style={{ minWidth: 0, paddingLeft: wide ? 0 : undefined, paddingRight: wide ? 0 : undefined }}>
+          {/* Every page opens the same way: a quiet label, then its title. */}
+          <header style={{ marginBottom: spacing.lg }}>
+            <Text variant="caption" tone="tertiary" style={{ textTransform: "uppercase", letterSpacing: 2 }}>
+              What people shipped
+            </Text>
+            <Text as="h1" variant="display" style={{ display: "block", marginTop: spacing.xs }}>
+              Feed
+            </Text>
+          </header>
 
           <Composer onPosted={onPosted} draft={draft} />
 

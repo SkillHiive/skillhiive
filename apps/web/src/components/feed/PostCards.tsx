@@ -90,7 +90,7 @@ export function FeedCard({
             }
           : undefined
       }
-      className={`overflow-hidden border border-[var(--color-border-subtle)] ${onPress ? "ui-lift" : ""}`}
+      className={`border border-[var(--color-border-subtle)] ${onPress ? "ui-lift" : ""}`}
       style={{
         background: colors.surface.primary,
         borderRadius: radii.xl,
@@ -208,6 +208,10 @@ function Caption({ text }: { text: string }) {
   );
 }
 
+/**
+ * A picture keeps its own shape, capped so a tall one cannot take over the feed. Cropping every
+ * image to one rectangle threw away most of a wide one; the post page already showed them whole.
+ */
 function PostImage({ src, alt }: { src: string; alt: string }) {
   const { colors, radii, spacing } = useTokens();
   return (
@@ -219,8 +223,9 @@ function PostImage({ src, alt }: { src: string; alt: string }) {
         display: "block",
         width: "100%",
         maxWidth: "100%",
-        aspectRatio: "16 / 10",
-        objectFit: "cover",
+        maxHeight: 460,
+        objectFit: "contain",
+        objectPosition: "left center",
         marginTop: spacing.md,
         borderRadius: radii.lg,
         background: colors.surface.secondary,

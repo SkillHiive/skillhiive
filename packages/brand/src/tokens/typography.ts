@@ -1,7 +1,7 @@
 // Typography tokens
 export const typography = {
-  display: { size: 44, lineHeight: 50, letterSpacing: -1.4, weight: 800 },
-  headline: { size: 30, lineHeight: 36, letterSpacing: -0.7, weight: 800 },
+  display: { size: 36, lineHeight: 40, letterSpacing: -1.3, weight: 800 },
+  headline: { size: 24, lineHeight: 30, letterSpacing: -0.6, weight: 800 },
   title: { size: 22, lineHeight: 28, letterSpacing: -0.4, weight: 700 },
   subtitle: { size: 17, lineHeight: 22, letterSpacing: -0.1, weight: 700 },
   bodyLg: { size: 17, lineHeight: 24, letterSpacing: 0, weight: 400 },
@@ -16,8 +16,8 @@ export type TypographyValue = (typeof typography)[TypographyToken];
 
 // Native typography (weight as string)
 export const typographyNative = {
-  display: { fontSize: 44, lineHeight: 50, letterSpacing: -1.4, fontWeight: "800" as const },
-  headline: { fontSize: 30, lineHeight: 36, letterSpacing: -0.7, fontWeight: "800" as const },
+  display: { fontSize: 36, lineHeight: 40, letterSpacing: -1.3, fontWeight: "800" as const },
+  headline: { fontSize: 24, lineHeight: 30, letterSpacing: -0.6, fontWeight: "800" as const },
   title: { fontSize: 22, lineHeight: 28, letterSpacing: -0.4, fontWeight: "700" as const },
   subtitle: { fontSize: 17, lineHeight: 22, letterSpacing: -0.1, fontWeight: "700" as const },
   bodyLg: { fontSize: 17, lineHeight: 24, letterSpacing: 0, fontWeight: "400" as const },

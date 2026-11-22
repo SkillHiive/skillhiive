@@ -185,7 +185,7 @@ export function TrackerProjectPickerModal({
               padding: "8px 12px",
               borderRadius: radii.md,
               border: `1px solid ${colors.border.subtle}`,
-              background: colors.bg.muted,
+              background: colors.surface.primary,
             }}
           >
             <Search size={14} color={colors.text.tertiary} />

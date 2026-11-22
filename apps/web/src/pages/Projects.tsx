@@ -96,7 +96,7 @@ export default function Projects() {
         }}
       >
         <BackLink to="/home" label="Today" className="w-fit" />
-        <Text variant="headline" weight={900} style={{ letterSpacing: -0.5 }}>
+        <Text as="h1" variant="display">
           Projects
         </Text>
 
