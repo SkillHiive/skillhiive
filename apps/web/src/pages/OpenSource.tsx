@@ -347,7 +347,7 @@ export function OpenSource() {
               }}
             >
               Web client, mobile app, backend services, LiveKit token server,
-              time-tracker sync engine — all MIT/AGPL. Clone it, audit it,
+              time-tracker sync engine, under AGPLv3. Clone it, audit it,
               self-host it, or contribute to it.
             </Text>
 
