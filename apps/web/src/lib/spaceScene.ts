@@ -123,12 +123,48 @@ export function timeline(p: number): Timeline {
   };
 }
 
+/** Where in the scene the walk through the areas starts, and how much of it the walk gets. */
+export const TOUR_START = 0.86;
+export const TOUR_SPAN = 0.14;
+/** One area's share of the walk. */
+const TOUR_STEP = TOUR_SPAN / SPACE_ZONES.length;
+
 /** The area the scene shows at this point, stepping through every area once the plan is in. */
 export function zoneAt(p: number): SpaceZone {
-  if (p <= 0.86) return SPACE_ZONES[0];
-  const i = Math.floor(((p - 0.86) / 0.14) * SPACE_ZONES.length);
+  if (p <= TOUR_START) return SPACE_ZONES[0];
+  const i = Math.floor(((p - TOUR_START) / TOUR_SPAN) * SPACE_ZONES.length);
   return SPACE_ZONES[Math.min(SPACE_ZONES.length - 1, i)]!;
 }
+
+/**
+ * The area the timeline wants, holding the one already shown until the scroll is clearly inside
+ * the next one. Resting on a boundary used to flip the title back and forth on every stray pixel
+ * of trackpad drift.
+ */
+export function zoneAtSticky(p: number, current: SpaceZone, margin = 0.2): SpaceZone {
+  const next = zoneAt(p);
+  if (next === current) return current;
+  const i = SPACE_ZONES.indexOf(next);
+  const into = p - (TOUR_START + i * TOUR_STEP);
+  // How far past the boundary we have come, whichever way we crossed it.
+  const past = i > SPACE_ZONES.indexOf(current) ? into : TOUR_STEP - into;
+  return past >= TOUR_STEP * margin ? next : current;
+}
+
+/** Who the shown area is following. */
+export type ZoneOwner = "timeline" | "pointer" | "pick";
+
+/**
+ * Whether a pointer over an area meant it. Scrolling drags new elements under a cursor that never
+ * moved, and the browser reports those as pointer events, so an accidental hover used to take the
+ * walk over and keep it. A pointer has chosen only when it moved itself, clear of the last scroll.
+ */
+export function pointerChose(moved: boolean, sinceScrollMs: number, graceMs = 120): boolean {
+  return moved && sinceScrollMs > graceMs;
+}
+
+/** How far the page must move before an area picked by click or tap gives way to the scroll. */
+export const PICK_RELEASE_PX = 60;
 
 export interface Box {
   x: number;
