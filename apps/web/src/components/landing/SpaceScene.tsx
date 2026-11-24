@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   FULL_LOGO_ASPECT,
   growRoundMark,
@@ -6,13 +6,16 @@ import {
   MARK_ASPECT,
   MARK_TILES,
   markAt,
+  PICK_RELEASE_PX,
+  pointerChose,
   sceneBoxes,
   sceneProgress,
   SPACE_ZONES,
   tileRect,
   timeline,
-  zoneAt,
+  zoneAtSticky,
   type SpaceZone,
+  type ZoneOwner,
 } from "@/lib/spaceScene";
 import { LogoMark } from "./LogoMark";
 import logoFull from "@/assets/landing/logo-full.webp";
@@ -152,16 +155,19 @@ function Seats({ x, y, cols, rows = 2, filled }: { x: number; y: number; cols: n
   return <>{seats}</>;
 }
 
-/** An area of the plan: hover, tap or keyboard shows its detail. */
+/**
+ * An area of the plan. A tap or the keyboard picks it outright; the pointer is read by the wrap,
+ * which can tell a pointer that moved onto an area from one the page scrolled underneath.
+ */
 function Zone({ id, active, onPick, children }: { id: SpaceZone; active: boolean; onPick: (z: SpaceZone) => void; children: ReactNode }) {
   return (
     <g
       className={active ? "zone on" : "zone"}
+      data-zone={id}
       role="button"
       tabIndex={0}
       aria-label={ZONE_LABEL[id]}
       aria-pressed={active}
-      onMouseEnter={() => onPick(id)}
       onClick={() => onPick(id)}
       onFocus={() => onPick(id)}
       onKeyDown={(e) => {
@@ -255,8 +261,14 @@ function Detail({ zone, onPick }: { zone: SpaceZone; onPick: (z: SpaceZone) => v
       <span className="lp-detail-key" aria-live="polite">
         {ZONE_LABEL[zone]}
       </span>
-      <h3>{d.title}</h3>
-      <p>{d.line}</p>
+      {/* Keyed on the area so the words replay their arrival each time it changes. The key above
+          is left alone: remounting a live region stops it announcing. */}
+      <h3 key={`t-${zone}`} className="lp-detail-swap">
+        {d.title}
+      </h3>
+      <p key={`l-${zone}`} className="lp-detail-swap">
+        {d.line}
+      </p>
       <div className="lp-ui" aria-hidden="true">
         {d.ui}
       </div>
@@ -289,7 +301,12 @@ function NoiseCard({ n, tile }: { n: (typeof NOISE)[number]; tile: string }) {
 export function SpaceScene() {
   const [reduce] = useState(prefersReducedMotion);
   const [zone, setZone] = useState<SpaceZone>("rooms");
-  const picked = useRef(false);
+  /** The walk follows the scroll until the pointer takes it, and the next scroll takes it back. */
+  const owner = useRef<ZoneOwner>("timeline");
+  const progress = useRef(0);
+  const lastScrollAt = useRef(0);
+  const pointer = useRef({ x: -1, y: -1 });
+  const pickedAtY = useRef(0);
   const sceneRef = useRef<HTMLElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const noiseRef = useRef<HTMLDivElement>(null);
@@ -299,9 +316,33 @@ export function SpaceScene() {
   const finishRef = useRef<HTMLParagraphElement>(null);
   const planRef = useRef<HTMLDivElement>(null);
 
+  /** A tap, a click or the keyboard: a choice, held until the page has moved a little. */
   const pick = (z: SpaceZone) => {
-    picked.current = true;
+    owner.current = "pick";
+    pickedAtY.current = window.scrollY;
     setZone(z);
+  };
+
+  /**
+   * The pointer over the plan. Only a pointer that moved itself, clear of the last scroll, decides
+   * anything: scrolling drags fresh areas under a still cursor and the browser reports those moves
+   * too, which is how a cursor left lying on the plan used to end the walk before it started.
+   */
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const moved = e.clientX !== pointer.current.x || e.clientY !== pointer.current.y;
+    pointer.current = { x: e.clientX, y: e.clientY };
+    if (!moved || !pointerChose(true, performance.now() - lastScrollAt.current)) return;
+    const z = (e.target as Element).closest?.("[data-zone]")?.getAttribute("data-zone");
+    if (!z) return;
+    owner.current = "pointer";
+    setZone(z as SpaceZone);
+  };
+
+  /** The pointer leaving hands the walk back, carrying on from wherever the scroll has reached. */
+  const onPointerLeave = () => {
+    if (reduce || owner.current !== "pointer") return;
+    owner.current = "timeline";
+    setZone((prev) => zoneAtSticky(progress.current, prev));
   };
 
   useEffect(() => {
@@ -317,6 +358,7 @@ export function SpaceScene() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const p = sceneProgress(rect.top, rect.height, h);
+      progress.current = p;
       const t = timeline(p);
       const boxes = sceneBoxes(w, h);
 
@@ -385,21 +427,37 @@ export function SpaceScene() {
         planRef.current.style.visibility = t.plan === 0 ? "hidden" : "visible";
       }
 
-      if (!picked.current) {
-        const next = zoneAt(p);
-        setZone((prev) => (prev === next ? prev : next));
+      if (owner.current === "timeline") {
+        setZone((prev) => {
+          const next = zoneAtSticky(p, prev);
+          return prev === next ? prev : next;
+        });
       }
     };
 
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(draw);
     };
+
+    /** Scrolling is the stronger signal, so it takes the walk back from the pointer. */
+    const onScroll = () => {
+      lastScrollAt.current = performance.now();
+      if (owner.current === "pointer") owner.current = "timeline";
+      // A picked area is a firmer choice: it holds until the page has actually moved on.
+      else if (owner.current === "pick" && Math.abs(window.scrollY - pickedAtY.current) > PICK_RELEASE_PX) {
+        owner.current = "timeline";
+      }
+      schedule();
+    };
+
+    // A cursor already lying on the plan when the page loads has chosen nothing.
+    lastScrollAt.current = performance.now();
     schedule();
-    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", schedule);
     return () => {
       if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", schedule);
     };
   }, [reduce]);
@@ -416,7 +474,7 @@ export function SpaceScene() {
               This is a space.
             </h2>
           </div>
-          <div className="lp-plan-wrap">
+          <div className="lp-plan-wrap" onPointerMove={onPointerMove} onPointerLeave={onPointerLeave}>
             <FloorPlan zone={zone} onPick={pick} />
             <Detail zone={zone} onPick={pick} />
           </div>
@@ -447,7 +505,7 @@ export function SpaceScene() {
         <h2 id="space-title" className="lp-space-title pinned" ref={headRef}>
           This is a space.
         </h2>
-        <div className="lp-plan-wrap pinned" ref={planRef}>
+        <div className="lp-plan-wrap pinned" ref={planRef} onPointerMove={onPointerMove} onPointerLeave={onPointerLeave}>
           <FloorPlan zone={zone} onPick={pick} />
           <Detail zone={zone} onPick={pick} />
         </div>

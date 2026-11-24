@@ -11,7 +11,11 @@ import {
   sceneProgress,
   tileRect,
   timeline,
+  pointerChose,
+  TOUR_SPAN,
+  TOUR_START,
   zoneAt,
+  zoneAtSticky,
 } from "./spaceScene";
 
 describe("sceneProgress", () => {
@@ -152,5 +156,34 @@ describe("the mark", () => {
   it("draws a square with its own radius on each corner", () => {
     expect(roundedSquarePath(0, 0, 10, [0, 0, 0, 0])).toBe("M0,0H10V10H0V0Z");
     expect(roundedSquarePath(0, 0, 10, [2, 0, 0, 0])).toBe("M2,0H10V10H0V2A2,2 0 0 1 2,0Z");
+  });
+});
+
+describe("who the walk through the areas follows", () => {
+  const step = TOUR_SPAN / 5;
+  /** A point the given fraction of the way into area `i`. */
+  const into = (i: number, frac: number) => TOUR_START + i * step + step * frac;
+
+  it("holds the area already shown until the scroll is clearly inside the next one", () => {
+    // Just over the boundary is still the area we were on: a pixel of drift must not flip it.
+    expect(zoneAtSticky(into(1, 0.05), "rooms")).toBe("rooms");
+    expect(zoneAtSticky(into(1, 0.5), "rooms")).toBe("cubicle");
+    // Coming back the other way needs the same margin.
+    expect(zoneAtSticky(into(1, 0.95), "break")).toBe("break");
+    expect(zoneAtSticky(into(1, 0.5), "break")).toBe("cubicle");
+  });
+
+  it("agrees with the plain reading once well inside an area", () => {
+    for (let i = 0; i < 5; i++) {
+      const p = into(i, 0.5);
+      expect(zoneAtSticky(p, zoneAt(p))).toBe(zoneAt(p));
+    }
+  });
+
+  it("counts a pointer only when it moved itself, clear of the last scroll", () => {
+    // The page moving under a still cursor: reported as a move, but nothing was chosen.
+    expect(pointerChose(false, 9999)).toBe(false);
+    expect(pointerChose(true, 10)).toBe(false);
+    expect(pointerChose(true, 500)).toBe(true);
   });
 });

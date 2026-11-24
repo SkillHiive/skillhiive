@@ -167,11 +167,15 @@
 .lp-plan .thin { fill: none; stroke: #333; stroke-width: 1.5; }
 .lp-plan .area { fill: rgba(255, 255, 255, 0.015); stroke: #3a3a3a; stroke-width: 1.5; transition: fill var(--dur-hover, 140ms) var(--ease-ui), stroke var(--dur-hover, 140ms) var(--ease-ui); }
 .lp-plan .zone { cursor: pointer; outline: none; }
-.lp-plan .zone.on .area, .lp-plan .zone:hover .area { fill: rgba(255, 253, 1, 0.06); stroke: var(--lp-accent); }
+/* Hover only says an area can be picked. Being the area the walk is showing is `.on`, which the
+   pointer takes only when it moved there itself: scrolling past with the cursor lying anywhere on
+   the plan used to light an area as though it had been chosen. */
+.lp-plan .zone:hover .area { stroke: #5a5a5a; }
+.lp-plan .zone.on .area { fill: rgba(255, 253, 1, 0.06); stroke: var(--lp-accent); }
 .lp-plan .zone:focus-visible .area { stroke-width: 3; }
 .lp-plan text { font-family: var(--lp-mono); font-size: 13px; fill: #8a8a8a; pointer-events: none; }
 .lp-plan text.big { font-size: 15px; fill: var(--lp-t1); }
-.lp-plan .zone.on text.big, .lp-plan .zone:hover text.big { fill: var(--lp-accent); }
+.lp-plan .zone.on text.big { fill: var(--lp-accent); }
 .lp-plan .seat { fill: #2a2a2a; }
 .lp-plan .seat.in { fill: #8a8a8a; }
 .lp-plan .frame { fill: #1a1a1a; stroke: #555; stroke-width: 1.2; }
@@ -179,6 +183,10 @@
 .lp-plan .timer { fill: none; stroke: var(--lp-accent); stroke-width: 3; stroke-dasharray: 100; stroke-dashoffset: 35; }
 
 .lp-detail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Each area's words arrive rather than cutting, so a change reads as a change. */
+.lp-detail-swap { animation: lp-detail-in var(--dur-move, 200ms) var(--ease-ui, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards; }
+@keyframes lp-detail-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .lp-detail-swap { animation: none; } }
 .lp-detail-key { font: 12px var(--lp-mono); color: var(--lp-accent); }
 .lp-detail h3 { font-family: var(--lp-head); font-size: clamp(26px, 2.6vw, 38px); font-weight: 800; letter-spacing: -0.03em; margin: 0; line-height: 1.05; }
 .lp-detail p { margin: 0; color: var(--lp-t2); font-size: 17px; line-height: 1.45; }
